@@ -1,8 +1,8 @@
-afed
-==============================
+Adiabatic Free Energy Dynamics with OpenMM
+==========================================
 [//]: # (Badges)
 [![Travis Build Status](https://travis-ci.org/craabreu/afed.png)](https://travis-ci.org/craabreu/afed)
-[![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/REPLACE_WITH_APPVEYOR_LINK/branch/master?svg=true)](https://ci.appveyor.com/project/craabreu/afed/branch/master)
+[![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/18wls2mcrk688fna/branch/master?svg=true)](https://ci.appveyor.com/project/craabreu/afed/branch/master)
 [![codecov](https://codecov.io/gh/craabreu/afed/branch/master/graph/badge.svg)](https://codecov.io/gh/craabreu/afed/branch/master)
 
 Adiabatic Free Energy Dynamics with OpenMM
