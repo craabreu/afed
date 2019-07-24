@@ -42,6 +42,7 @@ class DrivenCollectiveVariable(object):
         psi, dimension=radian, period=6.283185307179586 rad
 
     """
+
     def __init__(self, name, variable, dimension, period=None):
         self._name = name
         self._variable = variable
@@ -113,6 +114,7 @@ class DriverParameter(object):
             Whether this driver parameter is periodic with `period = upper_bound - lower_bound`.
 
     """
+
     def __init__(self, name, dimension, initial_value, temperature, velocity_scale,
                  lower_bound, upper_bound, periodic=False):
         self._name = name
@@ -139,6 +141,7 @@ class HarmonicDrivingForce(openmm.CustomCVForce):
     method.
 
     """
+
     def __init__(self):
         super().__init__('')
         self._energy_terms = []
