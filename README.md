@@ -4,6 +4,7 @@ Adiabatic Free Energy Dynamics with OpenMM
 [![Travis Build Status](https://travis-ci.org/craabreu/afed.png)](https://travis-ci.org/craabreu/afed)
 [![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/18wls2mcrk688fna/branch/master?svg=true)](https://ci.appveyor.com/project/craabreu/afed/branch/master)
 [![codecov](https://codecov.io/gh/craabreu/afed/branch/master/graph/badge.svg)](https://codecov.io/gh/craabreu/afed/branch/master)
+[![Documentation Status](https://readthedocs.org/projects/afed/badge/?style=flat)](https://readthedocs.org/projects/afed)
 
 Adiabatic Free Energy Dynamics with OpenMM
 
@@ -11,6 +12,12 @@ Adiabatic Free Energy Dynamics with OpenMM
 
 Copyright (c) 2019, Charlles Abreu
 
+
+### Documentation
+
+<!-- https://atomsmm.readthedocs.io/en/stable -->
+
+https://afed.readthedocs.io/en/latest
 
 #### Acknowledgements
 
