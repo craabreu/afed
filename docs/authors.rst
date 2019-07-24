@@ -1,5 +1,5 @@
-
+=======
 Authors
 =======
 
-* Charlles R. A. Abreu - http://atoms.peq.coppe.ufrj.br
+* Charlles Abreu - http://atoms.peq.coppe.ufrj.br

@@ -1,9 +1,15 @@
 """
-afed.py
-Adiabatic Free Energy Dynamics with OpenMM
+.. module:: afed
+   :platform: Unix, Windows
+   :synopsis: Adiabatic Free Energy Dynamics with OpenMM
 
-Handles the primary functions
+.. moduleauthor:: Charlles Abreu <abreu@eq.ufrj.br>
+
+.. _Force: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.Force.html
+.. _Context: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.Context.html
+
 """
+
 import copy
 
 from simtk import openmm, unit
@@ -13,63 +19,64 @@ class DrivenCollectiveVariable(object):
     """
     A collective variable whose dynamics is meant to be driven by an extended-space variable.
 
-    .. _Force: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.Force.html
-
     Parameters
     ----------
         name : str
             The name of the collective variable.
         variable : openmm.Force
             An OpenMM Force_ object whose energy function is used to evaluate the collective
-            variable for a given Context.
+            variable for a given Context_.
         dimension : unit.Unit
             The unit of measurement with which the collective variable is returned by the Force_
-            object specified as `variable` (see above). This is supposed to be one of the base
-            units employed by OpenMM (see `here
-            <http://docs.openmm.org/latest/userguide/theory.html#units/>`_.)
+            object specified as ``variable``. If the variable is a dimensionless quantity, then one
+            must explicitly state it by entering ``unit.dimensionless``. Otherwise, the dimension
+            is supposed to be one of the base units employed by OpenMM (see `here
+            <http://docs.openmm.org/latest/userguide/theory.html#units>`_) or a combination thereof.
         period : unit.Quantity, optional, default=None
-            The period of a periodic variable, which must bear a unit of measurement compatible
-            with `unit` (see above). If this is `None`, then the variable is considered to be
-            aperiodic.
+            The period of the collective variable if it is periodic. This argument must bear a unit
+            of measurement compatible with the specified ``dimension``. If the argument is ``None``,
+            then the collective variable is considered to be aperiodic.
 
     Example
     -------
         >>> from simtk import openmm, unit
         >>> cv = openmm.CustomTorsionForce('theta')
-        >>> cv.addTorsion(0, 1, 2, 3, [])
-        >>> psi = DrivenCollectiveVariable('psi', cv, unit=unit.radians, period=360*unit.degrees)
+        >>> cv_index = cv.addTorsion(0, 1, 2, 3, [])
+        >>> psi = DrivenCollectiveVariable('psi', cv, unit.radians, period=360*unit.degrees)
         >>> print(psi)
-        psi, dimension=radian, period=6.283185307179586 rad
+        psi, dimension=radian, period=360 degrees
 
     """
 
-    def __init__(self, name, variable, dimension, period=None):
+    def __init__(self, name, variable, dimension=unit.dimensionless, period=None):
         self._name = name
         self._variable = variable
         self._dimension = dimension
-        self._period = None if period is None else period.value_in_unit(dimension)
+        self._period = period
 
     def __repr__(self):
         return f'{self._name}, dimension={self._dimension}, period={self._period}'
 
     def evaluate(self, positions, box_vectors=None):
         """
-        Computes the value of the collective variable for a given set of particle coordinates and
-        box vectors. The use of periodic boundary conditions will depend on the Force object that
-        defines the collective variable.
+        Computes the value of the collective variable for a given set of particle coordinates
+        and box vectors. Whether periodic boundary conditions will be used or not depends on
+        the corresponding attribute of the Force_ object specified as the collective variable.
 
         Parameters
         ----------
             positions : list(openmm.Vec3)
-                A list whose length equals the number of particles in the system.
+                A list whose length equals the number of particles in the system and which contains
+                the coordinates of these particles.
             box_vectors : list(openmm.Vec3), optional, default=None
-                A list with three vectors containing the edges of the simulation box.
+                A list with three vectors which describe the edges of the simulation box.
 
         Returns
         -------
             unit.Quantity
 
         """
+
         system = openmm.System()
         for i in range(len(positions)):
             system.addParticle(0)
@@ -85,51 +92,44 @@ class DrivenCollectiveVariable(object):
 class DriverParameter(object):
     """
     An extended-space variable aimed at driving the dynamics of a collective variable. In the
-    terminology of OpenMM, this variable is a context parameter.
-
-    .. warning::
-        The extended variable driving a periodic collective variable will be periodic as well,
-        with the same period of that variable.
+    terminology of OpenMM, this variable is a Context_ parameter.
 
     Parameters
     ----------
         name : str
-            The name of the driver extended-space variable.
+            The name of the driver parameter.
+        dimension : unit.Unit
+            The unit of measurement of this driver parameter. If it is a dimensionless quantity,
+            then one must explicitly state it by entering ``unit.dimensionless``.
         initial_value : unit.Quantity
-            The initial value which the driver parameter must assume. The value must bear a unit of
-            measurement compatible with the associated driven variable.
+            The initial value which the driver parameter must assume. It must bear a unit of
+            measurement compatible with the specified ``dimension``.
         temperature : unit.Quantity
-            The temperature (:math:`T`) of the heat bath attached to the driver parameter.
+            The temperature of the heat bath which the driver parameter will be attached to.
         velocity_scale : unit.Quantity
-            The characteristic velocity scale (:math:`\\nu`) of the driver parameter in units
-            compatible with `driven-variable-units/time`. The inertial mass of the driver parameter
-            is computed as :math:`k_B T/\\nu^2`, where :math:`k_B` is the Boltzmann contant.
-        lower_bound : unit.Quantity
-            The lower limit imposed to the driver variable by means of a hard wall. If this is set
-            to `None`, then the variable will not be intentionally bounded from below.
-        upper_bound : unit.Quantity
-            The upper limit imposed to the driver variable by means of a hard wall. If this is set
-            to `None`, then the variable will not be intentionally bounded from above.
-        periodic : bool, optional, default=False
-            Whether this driver parameter is periodic with `period = upper_bound - lower_bound`.
+            The characteristic velocity scale (:math:`\\nu`) of the driver parameter. It must bear
+            a unit of measurement compatible with ``dimension``/time. The inertial mass of the
+            driver parameter will be computed as :math:`k_B T/\\nu^2`, where :math:`k_B` is the
+            Boltzmann contant and :math:`T` is ``temperature``.
+        lower_bound : unit.Quantity, optional, default=None
+            The lower limit imposed to the driver parameter by means of a hard wall. If this is
+            ``None``, then the parameter will not be intentionally bounded from below.
+        upper_bound : unit.Quantity, optional, default=None
+            The upper limit imposed to the driver parameter by means of a hard wall. If this is
+            ``None``, then the parameter will not be intentionally bounded from above.
 
     """
 
     def __init__(self, name, dimension, initial_value, temperature, velocity_scale,
-                 lower_bound, upper_bound, periodic=False):
+                 lower_bound=None, upper_bound=None):
         self._name = name
         self._initial_value = initial_value
-        self._dimension = initial_value.unit if isinstance(initial_value, unit.Quantity) else None
+        self._dimension = dimension
         kB = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA
         self._kT = kB*temperature
         self._mass = self._kT/velocity_scale**2
-        if self._dimension is None:
-            self._lower_bound = lower_bound
-            self._upper_bound = upper_bound
-        else:
-            self._lower_bound = None if lower_bound is None else lower_bound/self._dimension
-            self._upper_bound = None if upper_bound is None else upper_bound/self._dimension
-        self._period = self._upper_bound - self._lower_bound if periodic else None
+        self._lower_bound = lower_bound
+        self._upper_bound = upper_bound
 
     def __repr__(self):
         return f'{self._name}, initial value={self._initial_value}, kT={self._kT}, mass={self._mass}'
@@ -139,6 +139,10 @@ class HarmonicDrivingForce(openmm.CustomCVForce):
     """
     The typical harmonic driving potential used in the driven Adiabatic Free Energy Dynamics (dAFED)
     method.
+
+    .. warning::
+        For every periodic collective variable, the corresponding driver parameter will also be
+        considered to be periodic and have the same period.
 
     """
 
@@ -150,9 +154,10 @@ class HarmonicDrivingForce(openmm.CustomCVForce):
     def __repr__(self):
         return self.getEnergyFunction()
 
-    def add(self, variable, parameter, force_constant):
+    def add_pair(self, variable, parameter, force_constant):
         """
-        Adds a pair of driven variable and driver parameter.
+        Adds a pair of driven collective variable and driver parameter and specifies the force
+        constant of their harmonic coupling.
 
         Parameters
         ----------
@@ -169,10 +174,12 @@ class HarmonicDrivingForce(openmm.CustomCVForce):
         K = force_constant.value_in_unit(unit.kilojoules_per_mole/variable._dimension**2)
         if variable._period is not None:
             delta = f'abs({variable._name}-{parameter._name})'
-            self._energy_terms.append(f'{0.5*K}*min({delta},{variable._period}-{delta})^2')
+            period = variable._period/variable._dimension
+            self._energy_terms.append(f'{0.5*K}*min({delta},{period}-{delta})^2')
         else:
             self._energy_terms.append(f'{0.5*K}*({variable._name}-{parameter._name})^2')
         self.setEnergyFunction('+'.join(self._energy_terms))
+        # TODO: check if collective variable and/or parameter have already been added:
         self.addCollectiveVariable(variable._name, variable._variable)
         self.addGlobalParameter(parameter._name, parameter._initial_value)
         self.addEnergyParameterDerivative(parameter._name)
@@ -215,10 +222,11 @@ class GeodesicBAOABIntegrator(openmm.CustomIntegrator):
         if self._driving_force is not None:
             for parameter in self._driving_force._driver_parameters:
                 name = parameter._name
-                expression = 'y - L*floor((y - ymin)/L)'
+                ymin = parameter._lower_bound/parameter._dimension
+                ymax = parameter._upper_bound/parameter._dimension
+                expression = f'y - L*floor((y - {ymin})/L)'
                 expression += f'; y = {name} + {fraction}*dt*v_{name}'
-                expression += f'; ymin = {parameter._lower_bound}'
-                expression += f'; L = {parameter._upper_bound - parameter._lower_bound}'
+                expression += f'; L = {ymax - ymin}'
                 self.addComputeGlobal(name, expression)
 
     def _B(self, fraction):
