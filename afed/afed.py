@@ -304,9 +304,10 @@ class CustomIntegrator(openmm.CustomIntegrator):
 
 
 class BAOABIntegrator(CustomIntegrator):
-    def __init__(self, timestep, temperature, friction_coefficient, driving_force, rattles=1):
+    def __init__(self, timestep, temperature, friction_coefficient, driving_force, rattles=0):
         super().__init__(timestep, driving_force)
         self._driving_force = driving_force
+        self._rattles = rattles
         kT = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*temperature
         self.addGlobalVariable('kT', kT)
         self.addGlobalVariable('friction', friction_coefficient)
@@ -314,33 +315,36 @@ class BAOABIntegrator(CustomIntegrator):
         self.addPerDofVariable('x0', 0)
         self.addUpdateContextState()
         self._B(0.5)
-        self._A(0.5, rattles)
+        self._A(0.5)
         self._O(1)
-        self._A(0.5, rattles)
+        self._A(0.5)
         self._B(0.5)
 
-    def _A(self, fraction, rattles):
-        if rattles > 1:
+    def _A(self, fraction):
+        if self._rattles > 1:
             self.addComputeGlobal('irattle', '0')
-            self.beginWhileBlock(f'irattle < {rattles}')
-        self.addComputePerDof('x', f'x + {fraction/rattles}*dt*v')
-        self.addComputePerDof('x0', 'x')
-        self.addConstrainPositions()
-        self.addComputePerDof('v', f'v + (x - x0)/({fraction/rattles}*dt)')
-        self.addConstrainVelocities()
-        if rattles > 1:
+            self.beginWhileBlock(f'irattle < {self._rattles}')
+        self.addComputePerDof('x', f'x + {fraction/max(1, self._rattles)}*dt*v')
+        if self._rattles > 0:
+            self.addComputePerDof('x0', 'x')
+            self.addConstrainPositions()
+            self.addComputePerDof('v', f'v + (x - x0)/({fraction/max(1, self._rattles)}*dt)')
+            self.addConstrainVelocities()
+        if self._rattles > 1:
             self.addComputeGlobal('irattle', 'irattle + 1')
             self.endBlock()
         self.add_driver_parameter_move(fraction)
 
     def _B(self, fraction):
         self.addComputePerDof('v', 'v + 0.5*dt*f/m')
-        self.addConstrainVelocities()
+        if self._rattles > 0:
+            self.addConstrainVelocities()
         self.add_driver_parameter_kick(fraction)
 
     def _O(self, fraction):
         expression = 'z*v + sqrt((1 - z*z)*kT/m)*gaussian'
         z_definition = f'; z = exp(-{fraction}*friction*dt)'
         self.addComputePerDof('v', expression + z_definition)
-        self.addConstrainVelocities()
+        if self._rattles > 0:
+            self.addConstrainVelocities()
         self.add_driver_parameter_bath(fraction)
