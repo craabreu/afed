@@ -1,9 +1,12 @@
 name: test
 channels:
+  - omnia
 dependencies:
     # Base depends
   - python
   - pip
+
+  - openmm >=7.3.1
 
     # Testing
   - pytest
