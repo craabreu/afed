@@ -25,8 +25,8 @@ class DrivenCollectiveVariable(object):
         dimension : unit.Unit
             The unit of measurement with which the collective variable is returned by the Force_
             object specified as `variable` (see above). This is supposed to be one of the base
-            units employed by OpenMM (see here_).
-            .. _here: http://docs.openmm.org/latest/userguide/theory.html#units
+            units employed by OpenMM (see `here
+            <http://docs.openmm.org/latest/userguide/theory.html#units/>`_.)
         period : unit.Quantity, optional, default=None
             The period of a periodic variable, which must bear a unit of measurement compatible
             with `unit` (see above). If this is `None`, then the variable is considered to be
