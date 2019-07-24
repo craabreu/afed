@@ -7,6 +7,7 @@
 
 .. _Force: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.Force.html
 .. _Context: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.Context.html
+.. _CustomIntegrator: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.CustomIntegrator.html
 
 """
 
@@ -112,16 +113,23 @@ class DriverParameter(object):
             driver parameter will be computed as :math:`k_B T/\\nu^2`, where :math:`k_B` is the
             Boltzmann contant and :math:`T` is ``temperature``.
         lower_bound : unit.Quantity, optional, default=None
-            The lower limit imposed to the driver parameter by means of a hard wall. If this is
-            ``None``, then the parameter will not be intentionally bounded from below.
+            The lower limit imposed to the driver parameter by means of a hard wall or periodic
+            boundary conditions. If this is ``None``, then the parameter will not be intentionally
+            bounded from below. Otherwise, the argument must bear a unit of measurement compatible
+            with ``dimension``.
         upper_bound : unit.Quantity, optional, default=None
-            The upper limit imposed to the driver parameter by means of a hard wall. If this is
-            ``None``, then the parameter will not be intentionally bounded from above.
+            The upper limit imposed to the driver parameter by means of a hard wall or periodic
+            boundary conditions. If this is ``None``, then the parameter will not be intentionally
+            bounded from above. Otherwise, the argument must bear a unit of measurement compatible
+            with ``dimension``.
+        periodic : bool, optional, default=False
+            Whether the driver parameter is a periodic quantity with period equal to the difference
+            between ``upper_bound`` and ``lower_bound``.
 
     """
 
     def __init__(self, name, dimension, initial_value, temperature, velocity_scale,
-                 lower_bound=None, upper_bound=None):
+                 lower_bound=None, upper_bound=None, periodic=False):
         self._name = name
         self._initial_value = initial_value
         self._dimension = dimension
@@ -130,6 +138,9 @@ class DriverParameter(object):
         self._mass = self._kT/velocity_scale**2
         self._lower_bound = lower_bound
         self._upper_bound = upper_bound
+        self._periodic = periodic
+        if periodic and (self._lower_bound is None or self._upper_bound is None):
+            raise Exception('Bounds must be defined for a periodic driver parameter')
 
     def __repr__(self):
         return f'{self._name}, initial value={self._initial_value}, kT={self._kT}, mass={self._mass}'
@@ -170,6 +181,7 @@ class HarmonicDrivingForce(openmm.CustomCVForce):
                 of the collective variable.
 
         """
+
         self._driver_parameters.append(parameter)
         K = force_constant.value_in_unit(unit.kilojoules_per_mole/variable._dimension**2)
         if variable._period is not None:
@@ -179,32 +191,132 @@ class HarmonicDrivingForce(openmm.CustomCVForce):
         else:
             self._energy_terms.append(f'{0.5*K}*({variable._name}-{parameter._name})^2')
         self.setEnergyFunction('+'.join(self._energy_terms))
-        # TODO: check if collective variable and/or parameter have already been added:
         self.addCollectiveVariable(variable._name, variable._variable)
         self.addGlobalParameter(parameter._name, parameter._initial_value)
         self.addEnergyParameterDerivative(parameter._name)
 
 
-class GeodesicBAOABIntegrator(openmm.CustomIntegrator):
-    def __init__(self, timestep, temperature, friction_coefficient, number_of_rattles=1,
-                 driving_force=None):
+class CustomIntegrator(openmm.CustomIntegrator):
+    def __init__(self, timestep, driving_force):
         super().__init__(timestep)
+        self._driving_force = driving_force
+        for parameter in driving_force._driver_parameters:
+            self.addGlobalVariable(f'v_{parameter._name}', 0)
+            self.addGlobalVariable(f'm_{parameter._name}', parameter._mass)
+            self.addGlobalVariable(f'kT_m_{parameter._name}', parameter._kT/parameter._mass)
+
+    def __repr__(self):
+        """
+        Human-readable version of each integrator step (adapted from choderalab/openmmtools)
+
+        """
+        step_type_str = [
+            '{target} <- {expr}',
+            '{target} <- {expr}',
+            '{target} <- sum({expr})',
+            'constrain positions',
+            'constrain velocities',
+            'allow forces to update the context state',
+            'if ({expr}):',
+            'while ({expr}):',
+            'end'
+        ]
+        readable_lines = []
+        indent_level = 0
+        for step in range(self.getNumComputations()):
+            line = ''
+            step_type, target, expr = self.getComputationStep(step)
+            if step_type == 8:
+                indent_level -= 1
+            command = step_type_str[step_type].format(target=target, expr=expr)
+            line += '{:4d}: '.format(step) + ' '*3*indent_level + command
+            if step_type in [6, 7]:
+                indent_level += 1
+            readable_lines.append(line)
+        return '\n'.join(readable_lines)
+
+    def add_driver_parameter_move(self, fraction):
+        """
+        Adds a step in which all driver parameters undergo a translation corresponding to a given
+        fraction of the integrator's total time step.
+
+        Parameter
+        ---------
+            fraction : numbers.Real
+                The fraction of time step to be taken.
+
+        """
+
+        for parameter in self._driving_force._driver_parameters:
+            name = parameter._name
+            if parameter._periodic:
+                ymin = parameter._lower_bound/parameter._dimension
+                ymax = parameter._upper_bound/parameter._dimension
+                expression = f'y - L*floor((y - ymin)/L)'
+                expression += f'; ymin = {ymin}'
+                expression += f'; L = {ymax - ymin}'
+                expression += f'; y = {name} + {fraction}*dt*v_{name}'
+                self.addComputeGlobal(name, expression)
+            else:
+                expression += f'{name} + {fraction}*dt*v_{name}'
+                self.addComputeGlobal(name, expression)
+                for bound, op in zip([parameter._lower_bound, parameter._upper_bound], ['<', '>']):
+                    if bound is not None:
+                        limit = bound/parameter._dimension
+                        self.beginIfBlock(f'{name} {op} {limit}')
+                        self.addComputeGlobal(name, f'{2*limit}-{name}')
+                        self.addComputeGlobal(f'v_{name}', f'-v_{name}')
+                        self.endBlock()
+
+    def add_driver_parameter_kick(self, fraction):
+        """
+        Adds a step in which all driver parameters undergo a velocity boost corresponding to a
+        given fraction of the integrator's total time step.
+
+        Parameter
+        ---------
+            fraction : numbers.Real
+                The fraction of time step to be taken.
+
+        """
+
+        for parameter in self._driving_force._driver_parameters:
+            name = parameter._name
+            expression = f'v_{name} - {fraction}*dt*deriv(energy,{name})/m_{name}'
+            self.addComputeGlobal(f'v_{name}', expression)
+
+    def add_driver_parameter_bath(self, fraction):
+        """
+        Adds a step in which all driver parameters interact with their thermostats, corresponding
+        to a given fraction of the integrator's total time step.
+
+        Parameter
+        ---------
+            fraction : numbers.Real
+                The fraction of time step to be taken.
+
+        """
+        for parameter in self._driving_force._driver_parameters:
+            name = parameter._name
+            expression = f'z*v_{name} + sqrt((1 - z*z)*kT_m_{name})*gaussian'
+            expression += f'; z = exp(-{fraction}*friction*dt)'
+            self.addComputeGlobal(f'v_{name}', expression)
+
+
+class BAOABIntegrator(CustomIntegrator):
+    def __init__(self, timestep, temperature, friction_coefficient, driving_force, rattles=1):
+        super().__init__(timestep, driving_force)
         self._driving_force = driving_force
         kT = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*temperature
         self.addGlobalVariable('kT', kT)
         self.addGlobalVariable('friction', friction_coefficient)
         self.addGlobalVariable('irattle', 0)
         self.addPerDofVariable('x0', 0)
-        if driving_force is not None:
-            for parameter in driving_force._driver_parameters:
-                self.addGlobalVariable(f'v_{parameter._name}', 0)
-                self.addGlobalVariable(f'm_{parameter._name}', parameter._mass)
-                self.addGlobalVariable(f'kT_m_{parameter._name}', parameter._kT/parameter._mass)
         self.addUpdateContextState()
         self._B(0.5)
-        self._A(0.5, number_of_rattles)
+        self._A(0.5, rattles)
         self._O(1)
-        self._A(0.5, number_of_rattles)
+        self._A(0.5, rattles)
         self._B(0.5)
 
     def _A(self, fraction, rattles):
@@ -219,32 +331,16 @@ class GeodesicBAOABIntegrator(openmm.CustomIntegrator):
         if rattles > 1:
             self.addComputeGlobal('irattle', 'irattle + 1')
             self.endBlock()
-        if self._driving_force is not None:
-            for parameter in self._driving_force._driver_parameters:
-                name = parameter._name
-                ymin = parameter._lower_bound/parameter._dimension
-                ymax = parameter._upper_bound/parameter._dimension
-                expression = f'y - L*floor((y - {ymin})/L)'
-                expression += f'; y = {name} + {fraction}*dt*v_{name}'
-                expression += f'; L = {ymax - ymin}'
-                self.addComputeGlobal(name, expression)
+        self.add_driver_parameter_move(fraction)
 
     def _B(self, fraction):
         self.addComputePerDof('v', 'v + 0.5*dt*f/m')
         self.addConstrainVelocities()
-        if self._driving_force is not None:
-            for parameter in self._driving_force._driver_parameters:
-                name = parameter._name
-                expression = f'v_{name} - {fraction}*dt*deriv(energy,{name})/m_{name}'
-                self.addComputeGlobal(f'v_{name}', expression)
+        self.add_driver_parameter_kick(fraction)
 
     def _O(self, fraction):
         expression = 'z*v + sqrt((1 - z*z)*kT/m)*gaussian'
         z_definition = f'; z = exp(-{fraction}*friction*dt)'
         self.addComputePerDof('v', expression + z_definition)
         self.addConstrainVelocities()
-        if self._driving_force is not None:
-            for parameter in self._driving_force._driver_parameters:
-                name = parameter._name
-                expression = f'z*v_{name} + sqrt((1 - z*z)*kT_m_{name})*gaussian'
-                self.addComputeGlobal(f'v_{name}', expression + z_definition)
+        self.add_driver_parameter_bath(fraction)
