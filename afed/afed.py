@@ -59,7 +59,7 @@ class DrivenCollectiveVariable(object):
     def __repr__(self):
         return f'{self._name}, dimension={self._dimension}, period={self._period}'
 
-    def evaluate(self, positions, box_vectors=None):
+    def evaluate(self, positions, boxVectors=None):
         """
         Computes the value of the collective variable for a given set of particle coordinates
         and box vectors. Whether periodic boundary conditions will be used or not depends on
@@ -70,7 +70,7 @@ class DrivenCollectiveVariable(object):
             positions : list(openmm.Vec3)
                 A list whose length equals the number of particles in the system and which contains
                 the coordinates of these particles.
-            box_vectors : list(openmm.Vec3), optional, default=None
+            boxVectors : list(openmm.Vec3), optional, default=None
                 A list with three vectors which describe the edges of the simulation box.
 
         Returns
@@ -82,8 +82,8 @@ class DrivenCollectiveVariable(object):
         system = openmm.System()
         for i in range(len(positions)):
             system.addParticle(0)
-        if box_vectors is not None:
-            system.setDefaultPeriodicBoxVectors(*box_vectors)
+        if boxVectors is not None:
+            system.setDefaultPeriodicBoxVectors(*boxVectors)
         system.addForce(copy.deepcopy(self._variable))
         context = openmm.Context(system, openmm.CustomIntegrator(0))
         context.setPositions(positions)
@@ -103,42 +103,42 @@ class DriverParameter(object):
         dimension : unit.Unit
             The unit of measurement of this driver parameter. If it is a dimensionless quantity,
             then one must explicitly state it by entering ``unit.dimensionless``.
-        initial_value : unit.Quantity
+        initialValue : unit.Quantity
             The initial value which the driver parameter must assume. It must bear a unit of
             measurement compatible with the specified ``dimension``.
         temperature : unit.Quantity
             The temperature of the heat bath which the driver parameter will be attached to.
-        velocity_scale : unit.Quantity
+        velocityScale : unit.Quantity
             The characteristic velocity scale (:math:`\\nu`) of the driver parameter. It must bear
             a unit of measurement compatible with ``dimension``/time. The inertial mass of the
             driver parameter will be computed as :math:`k_B T/\\nu^2`, where :math:`k_B` is the
             Boltzmann contant and :math:`T` is ``temperature``.
-        lower_bound : unit.Quantity, optional, default=None
+        lowerBound : unit.Quantity, optional, default=None
             The lower limit imposed to the driver parameter by means of a hard wall or periodic
             boundary conditions. If this is ``None``, then the parameter will not be intentionally
             bounded from below. Otherwise, the argument must bear a unit of measurement compatible
             with ``dimension``.
-        upper_bound : unit.Quantity, optional, default=None
+        upperBound : unit.Quantity, optional, default=None
             The upper limit imposed to the driver parameter by means of a hard wall or periodic
             boundary conditions. If this is ``None``, then the parameter will not be intentionally
             bounded from above. Otherwise, the argument must bear a unit of measurement compatible
             with ``dimension``.
         periodic : bool, optional, default=False
             Whether the driver parameter is a periodic quantity with period equal to the difference
-            between ``upper_bound`` and ``lower_bound``.
+            between ``upperBound`` and ``lowerBound``.
 
     """
 
-    def __init__(self, name, dimension, initial_value, temperature, velocity_scale,
-                 lower_bound=None, upper_bound=None, periodic=False):
+    def __init__(self, name, dimension, initialValue, temperature, velocityScale,
+                 lowerBound=None, upperBound=None, periodic=False):
         self._name = name
-        self._initial_value = initial_value
+        self._initial_value = initialValue
         self._dimension = dimension
         kB = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA
         self._kT = kB*temperature
-        self._mass = self._kT/velocity_scale**2
-        self._lower_bound = lower_bound
-        self._upper_bound = upper_bound
+        self._mass = self._kT/velocityScale**2
+        self._lower_bound = lowerBound
+        self._upper_bound = upperBound
         self._periodic = periodic
         if periodic and (self._lower_bound is None or self._upper_bound is None):
             raise Exception('Bounds must be defined for a periodic driver parameter')
@@ -171,7 +171,7 @@ class HarmonicDrivingForce(DrivingForce):
         super().__init__('')
         self._energy_terms = []
 
-    def add_pair(self, variable, parameter, force_constant):
+    def addPair(self, variable, parameter, force_constant):
         """
         Adds a pair of driven collective variable and driver parameter and specifies the force
         constant of their harmonic coupling.
