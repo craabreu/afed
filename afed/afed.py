@@ -171,7 +171,7 @@ class HarmonicDrivingForce(DrivingForce):
         super().__init__('')
         self._energy_terms = []
 
-    def addPair(self, variable, parameter, force_constant):
+    def addPair(self, variable, parameter, forceConstant):
         """
         Adds a pair of driven collective variable and driver parameter and specifies the force
         constant of their harmonic coupling.
@@ -182,14 +182,14 @@ class HarmonicDrivingForce(DrivingForce):
                 The driven collective variable.
             parameter : :class:`DriverParameter`
                 The driver parameter.
-            force_constant : unit.Quantity
+            forceConstant : unit.Quantity
                 The strength of the coupling harmonic force in units of energy per squared dimension
                 of the collective variable.
 
         """
 
         self._driver_parameters.append(parameter)
-        K = force_constant.value_in_unit(unit.kilojoules_per_mole/variable._dimension**2)
+        K = forceConstant.value_in_unit(unit.kilojoules_per_mole/variable._dimension**2)
         if variable._period is not None:
             delta = f'abs({variable._name}-{parameter._name})'
             period = variable._period/variable._dimension
@@ -212,15 +212,15 @@ class CustomIntegrator(openmm.CustomIntegrator):
     ----------
         stepSize : unit.Quantity
             The step size with which to integrate the system.
-        driving_force : :class:`DrivingForce`
+        drivingForce : :class:`DrivingForce`
             The AFED driving force.
 
     """
-    def __init__(self, stepSize, driving_force):
+    def __init__(self, stepSize, drivingForce):
         super().__init__(stepSize)
-        self._driving_force = driving_force
+        self._driving_force = drivingForce
         self._per_parameter_variables = set(['v', 'm', 'kT'])
-        for parameter in driving_force._driver_parameters:
+        for parameter in drivingForce._driver_parameters:
             self.addGlobalVariable(f'v_{parameter._name}', 0)
             self.addGlobalVariable(f'm_{parameter._name}', parameter._mass)
             self.addGlobalVariable(f'kT_{parameter._name}', parameter._kT)
@@ -312,15 +312,15 @@ class CustomIntegrator(openmm.CustomIntegrator):
 
 
 class BAOABIntegrator(CustomIntegrator):
-    def __init__(self, timestep, temperature, friction_coefficient, driving_force, rattles=0):
-        super().__init__(timestep, driving_force)
-        self._driving_force = driving_force
-        self._rattles = rattles
+    def __init__(self, temperature, frictionCoeff, stepSize, drivingForce, numRattles=0):
+        super().__init__(stepSize, drivingForce)
+        self._driving_force = drivingForce
+        self._rattles = numRattles
         kT = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*temperature
         self.addGlobalVariable('kT', kT)
-        self.addGlobalVariable('friction', friction_coefficient)
-        rattles > 1 and self.addGlobalVariable('irattle', 0)
-        rattles > 0 and self.addPerDofVariable('x0', 0)
+        self.addGlobalVariable('friction', frictionCoeff)
+        self._rattles > 1 and self.addGlobalVariable('irattle', 0)
+        self._rattles > 0 and self.addPerDofVariable('x0', 0)
         self.addUpdateContextState()
         self._B(0.5)
         self._A(0.5)
