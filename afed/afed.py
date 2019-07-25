@@ -8,6 +8,7 @@
 .. _Force: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.Force.html
 .. _Context: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.Context.html
 .. _CustomIntegrator: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.CustomIntegrator.html
+.. _CustomCVForce: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.CustomCVForce.html
 
 """
 
@@ -148,6 +149,19 @@ class DriverParameter(object):
 
 
 class DrivingForce(openmm.CustomCVForce):
+    """
+    A extension of OpenMM's CustomCVForce_ class with special treatment for pairs of AFED-related
+    pairs of :class:`DrivenCollectiveVariable` and :class:`DriverParameter`.
+
+    Parameters
+    ----------
+        energy : str
+            An algebraic expression giving a contribution to the system energy as a function of the
+            driven collective variables and driver parameters, as well as other standard collective
+            variables and global parameters.
+
+    """
+
     def __init__(self, energy):
         super().__init__(energy)
         self._driver_parameters = []
@@ -155,15 +169,29 @@ class DrivingForce(openmm.CustomCVForce):
     def __repr__(self):
         return self.getEnergyFunction()
 
+    def addPair(self, variable, parameter):
+        """
+        Adds a pair of driven collective variable and driver parameter.
+
+        Parameters
+        ----------
+            variable : :class:`DrivenCollectiveVariable`
+                The driven collective variable.
+            parameter : :class:`DriverParameter`
+                The driver parameter.
+
+        """
+
+        self._driver_parameters.append(parameter)
+        self.addCollectiveVariable(variable._name, variable._variable)
+        self.addGlobalParameter(parameter._name, parameter._initial_value)
+        self.addEnergyParameterDerivative(parameter._name)
+
 
 class HarmonicDrivingForce(DrivingForce):
     """
-    The typical harmonic driving potential used in the driven Adiabatic Free Energy Dynamics (dAFED)
-    method.
-
-    .. warning::
-        For every periodic collective variable, the corresponding driver parameter will also be
-        considered to be periodic and have the same period.
+    A special case of :class:`DrivingForce` to handle the typical harmonic driving potential used
+    in the driven Adiabatic Free Energy Dynamics (dAFED) method.
 
     """
 
@@ -188,7 +216,6 @@ class HarmonicDrivingForce(DrivingForce):
 
         """
 
-        self._driver_parameters.append(parameter)
         K = forceConstant.value_in_unit(unit.kilojoules_per_mole/variable._dimension**2)
         if variable._period is not None:
             delta = f'abs({variable._name}-{parameter._name})'
@@ -197,9 +224,7 @@ class HarmonicDrivingForce(DrivingForce):
         else:
             self._energy_terms.append(f'{0.5*K}*({variable._name}-{parameter._name})^2')
         self.setEnergyFunction('+'.join(self._energy_terms))
-        self.addCollectiveVariable(variable._name, variable._variable)
-        self.addGlobalParameter(parameter._name, parameter._initial_value)
-        self.addEnergyParameterDerivative(parameter._name)
+        super().addPair(variable, parameter)
 
 
 class CustomIntegrator(openmm.CustomIntegrator):
@@ -216,6 +241,7 @@ class CustomIntegrator(openmm.CustomIntegrator):
             The AFED driving force.
 
     """
+
     def __init__(self, stepSize, drivingForce):
         super().__init__(stepSize)
         self._driving_force = drivingForce
