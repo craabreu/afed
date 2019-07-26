@@ -5,10 +5,11 @@
 
 .. moduleauthor:: Charlles Abreu <abreu@eq.ufrj.br>
 
-.. _Force: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.Force.html
 .. _Context: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.Context.html
-.. _CustomIntegrator: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.CustomIntegrator.html
 .. _CustomCVForce: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.CustomCVForce.html
+.. _CustomIntegrator: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.CustomIntegrator.html
+.. _Force: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.Force.html
+.. _System: http://docs.openmm.org/latest/api-python/generated/simtk.openmm.openmm.System.html
 
 """
 
@@ -303,7 +304,7 @@ class CustomIntegrator(openmm.CustomIntegrator):
 
         def translate(expression, parameter):
             output = re.sub(r'\bx\b', f'{parameter}', expression)
-            output = re.sub(r'\bf\b', f'(-deriv(energy,{parameter}))', output)
+            output = re.sub(r'\bf([0-9]*)\b', f'(-deriv(energy\\1,{parameter}))', output)
             for symbol in self._per_parameter_variables:
                 output = re.sub(r'\b{}\b'.format(symbol), f'{symbol}_{parameter}', output)
             return output
@@ -337,10 +338,99 @@ class CustomIntegrator(openmm.CustomIntegrator):
         return index
 
 
+class MiddleSchemeAFEDIntegrator(CustomIntegrator):
+    """
+    An abstract class aimed at facilitating the implementation of different AFED integrators that
+    differ on the employed thermostat but share the following features:
+
+    1. Integration of particle-related degrees of freedom is done by using a middle-type scheme
+    (i.e. kick-move-bath-move-kick), possibly involving multiple time stepping (RESPA), and the
+    system does not have any holonomic constraints.
+
+    2. Integration of driver parameters and their attached thermostats is done with a middle-type
+    scheme as well, and is detached from the integration of all other dynamic variables, including
+    the driver-parameter velocities.
+
+    3. Integration of driver-parameter velocities is always done along with the integration of
+    particle velocities, with possible splitting into multiple time scales.
+
+    Activation of multiple time scale integration (RESPA) is done by passing a list of integers
+    through the keyword argument ``respaLoops`` (see below). The size of this list determines the
+    number of considered time scales. Among the Force_ objects that belong to the simulated System_,
+    only those whose force groups have been set to `k` will be considered at time scale `ḱ`. This
+    includes the AFED-related :class:`DrivingForce`.
+
+    Parameters
+    ----------
+        stepSize : unit.Quantity
+            The step size with which to integrate the system.
+        drivingForce : :class:`DrivingForce`
+            The AFED driving force.
+        respaLoops : list(int), optional, default=None
+            A list of N integers, where ``respaLoops[k]`` determines how many iterations at time
+            scale `k` are internally executed for every iteration at time scale `k+1`. If this is
+            ``None``, then integration will take place at a single time scale.
+
+    """
+
+    def __init__(self, stepSize, drivingForce, respaLoops):
+        super().__init__(stepSize, drivingForce)
+        self._respaLoops = respaLoops
+        if respaLoops is not None:
+            for scale, nsteps in enumerate(respaLoops):
+                if nsteps > 1:
+                    self.addGlobalVariable(f'irespa{scale}', 0)
+        self.addThermostat(lambda fraction, compute: None)
+
+    def _integrate_particles_respa(self, fraction, scale):
+        if self._respaLoops[scale] > 1:
+            self.addComputeGlobal(f'irespa{scale}', '0')
+            self.beginWhileBlock(f'irespa{scale} < {self._respaLoops[scale]}')
+        if scale > 0:
+            self._kick(fraction/2, self.addComputePerParameter, scale)
+            self._kick(fraction/2, self.addComputePerDof, scale)
+            self._integrate_particles_respa(fraction, scale-1)
+            self._kick(fraction/2, self.addComputePerDof, scale)
+            self._kick(fraction/2, self.addComputePerParameter, scale)
+        else:
+            self._inner_loop(fraction, group=0)
+        if self._respaLoops[scale] > 1:
+            self.addComputeGlobal(f'irespa{scale}', f'irespa{scale} + 1')
+            self.endBlock()
+
+    def _inner_loop(self, fraction, group):
+        self._kick(fraction/2, self.addComputePerParameter, group)
+        self._kick(fraction/2, self.addComputePerDof, group)
+        self._move(fraction/2, self.addComputePerDof)
+        self._bath(fraction, self.addComputePerDof)
+        self._move(fraction/2, self.addComputePerDof)
+        self._kick(fraction/2, self.addComputePerDof, group)
+        self._kick(fraction/2, self.addComputePerParameter, group)
+
+    def _move(self, fraction, compute):
+        compute('x', f'x + {fraction}*dt*v')
+
+    def _kick(self, fraction, compute, group=''):
+        compute('v', f'v + {fraction}*dt*f{group}/m')
+
+    def addThermostat(self, function):
+        self._bath = function
+
+    def addIntegrateParticles(self, fraction):
+        if self._respaLoops is None:
+            self._inner_loop(fraction, group='')
+        else:
+            self._integrate_particles_respa(fraction, len(self._respaLoops)-1)
+
+    def addIntegrateParameters(self, fraction):
+        self._move(0.5, self.addComputePerParameter)
+        self._bath(1.0, self.addComputePerParameter)
+        self._move(0.5, self.addComputePerParameter)
+
+
 class BAOABIntegrator(CustomIntegrator):
     def __init__(self, temperature, frictionCoeff, stepSize, drivingForce, numRattles=0):
         super().__init__(stepSize, drivingForce)
-        self._driving_force = drivingForce
         self._rattles = numRattles
         kT = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*temperature
         self.addGlobalVariable('kT', kT)
