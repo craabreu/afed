@@ -389,18 +389,19 @@ class MiddleSchemeAFEDIntegrator(CustomIntegrator):
         self.addUpdateContextState()
 
     def _integrate_particles_respa(self, fraction, scale):
-        if self._respaLoops[scale] > 1:
+        n = self._respaLoops[scale]
+        if n > 1:
             self.addComputeGlobal(f'irespa{scale}', '0')
-            self.beginWhileBlock(f'irespa{scale} < {self._respaLoops[scale]}')
+            self.beginWhileBlock(f'irespa{scale} < {n}')
         if scale > 0:
-            self._kick(fraction/2, self.addComputePerParameter, scale)
-            self._kick(fraction/2, self.addComputePerDof, scale)
-            self._integrate_particles_respa(fraction, scale-1)
-            self._kick(fraction/2, self.addComputePerDof, scale)
-            self._kick(fraction/2, self.addComputePerParameter, scale)
+            self._kick(fraction/(2*n), self.addComputePerParameter, scale)
+            self._kick(fraction/(2*n), self.addComputePerDof, scale)
+            self._integrate_particles_respa(fraction/n, scale-1)
+            self._kick(fraction/(2*n), self.addComputePerDof, scale)
+            self._kick(fraction/(2*n), self.addComputePerParameter, scale)
         else:
-            self._inner_loop(fraction, group=0)
-        if self._respaLoops[scale] > 1:
+            self._inner_loop(fraction/n, group=0)
+        if n > 1:
             self.addComputeGlobal(f'irespa{scale}', f'irespa{scale} + 1')
             self.endBlock()
 
@@ -437,8 +438,8 @@ class MiddleSchemeAFEDIntegrator(CustomIntegrator):
 class MassiveNHCIntegrator(MiddleSchemeAFEDIntegrator):
     """
     An AFED integrator based on the massive Nosé-Hoover Chain thermostat. This means that an
-    independent thermostat chain is attached to each degree of freedom. In this implementation,
-    each chain is composed of two thermostats connected in series.
+    independent thermostat chain is attached to each degree of freedom, including the AFED driver
+    parameters. In this implementation, each chain is composed of two thermostats in series.
 
     All other properties of this integrator are inherited from :class:`MiddleSchemeAFEDIntegrator`.
 
@@ -447,7 +448,7 @@ class MassiveNHCIntegrator(MiddleSchemeAFEDIntegrator):
         temperature : unit.Quantity
             The temperature of the heat bath which the particles are attached to.
         timeScale : unit.Quantity
-            The characteristic time scale of the thermostat chain.
+            The characteristic time scale of the thermostat chains.
         stepSize : unit.Quantity
             The step size with which to integrate the system.
         drivingForce : :class:`DrivingForce`
@@ -459,10 +460,10 @@ class MassiveNHCIntegrator(MiddleSchemeAFEDIntegrator):
     def __init__(self, temperature, timeScale, stepSize, drivingForce, respaLoops=None):
         super().__init__(temperature, stepSize, drivingForce, respaLoops)
         kT = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*temperature
-        for i in range(1, 3):
-            self.addGlobalVariable(f'Q{i}', kT*timeScale**2)
-            self.addPerDofVariable(f'v{i}', 0)
-            self.addPerParameterVariable(f'v{i}', 0)
+        for i in range(2):
+            self.addGlobalVariable(f'Q{i+1}', kT*timeScale**2)
+            self.addPerDofVariable(f'v{i+1}', 0)
+            self.addPerParameterVariable(f'v{i+1}', 0)
 
         def NoseHooverChain(fraction, compute):
             compute('v2', f'v2 + {fraction/2}*dt*(Q1*v1^2 - kT)/Q2')
