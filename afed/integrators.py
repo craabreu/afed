@@ -289,3 +289,97 @@ class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
         addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
         addCompute('v1', f'v1*exp(-{fraction/2}*dt*v2)')
         addCompute('v2', f'v2 + {fraction/2}*dt*(Q1*v1^2 - kT)/Q2')
+
+
+class MassiveGGMTIntegrator(MassiveMiddleSchemeIntegrator):
+    """
+    An AFED integrator based on the massive Generalized Gaussian Moment thermostat. This means that
+    an independent GGM thermostat is attached to each degree of freedom, including the AFED driver
+    parameters.
+
+    All other properties of this integrator are inherited from :class:`MassiveMiddleSchemeIntegrator`.
+
+    Parameters
+    ----------
+        temperature : unit.Quantity
+            The temperature of the heat bath which the particles are attached to.
+        timeScale : unit.Quantity
+            The characteristic time scale of the GGM thermostats.
+        stepSize : unit.Quantity
+            The step size with which to integrate the system.
+        drivingForce : :class:`~afed.afed.DrivingForce`
+            The AFED driving force.
+
+    Keyword Args
+    ------------
+        respaLoops : list(int), default=None
+            See :class:`MassiveMiddleSchemeIntegrator`.
+        parameterLoops : int, default = 1
+            See :class:`MassiveMiddleSchemeIntegrator`.
+
+    """
+
+    def __init__(self, temperature, timeScale, stepSize, drivingForce, **kwargs):
+        super().__init__(temperature, stepSize, drivingForce, **kwargs)
+        kT = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*temperature
+        for i, A in enumerate([kT, 8*kT**3/3]):
+            self.addGlobalVariable(f'Q{i+1}', A*timeScale**2)
+            self.addPerDofVariable(f'v{i+1}', 1)
+            self.addPerParameterVariable(f'v{i+1}', 1)
+
+        self.addIntegrateParticles(0.5)
+        self.addIntegrateParameters(1)
+        self.addIntegrateParticles(0.5)
+
+    def _bath(self, fraction, addCompute):
+        addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
+        addCompute('v2', f'v2 + {fraction/2}*dt*(m^2*v^4/3 - kT^2)/Q2')
+        addCompute('v', f'v*exp(-{fraction/2}*dt*v1)')
+        addCompute('v', f'v/sqrt(z+z*y-y); z=exp(2*{fraction}*dt*kT*v2); y=m*v^2/(3*kT)')
+        addCompute('v', f'v*exp(-{fraction/2}*dt*v1)')
+        addCompute('v2', f'v2 + {fraction/2}*dt*(m^2*v^4/3 - kT^2)/Q2')
+        addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
+
+
+class BAOABIntegrator(CustomIntegrator):
+    def __init__(self, temperature, frictionCoeff, stepSize, drivingForce, numRattles=0):
+        super().__init__(stepSize, drivingForce)
+        self._rattles = numRattles
+        kT = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*temperature
+        self.addGlobalVariable('kT', kT)
+        self.addGlobalVariable('friction', frictionCoeff)
+        self._rattles > 1 and self.addGlobalVariable('irattle', 0)
+        self._rattles > 0 and self.addPerDofVariable('x0', 0)
+        self.addUpdateContextState()
+        self._B(0.5)
+        self._A(0.5)
+        self._O(1)
+        self._A(0.5)
+        self._B(0.5)
+
+    def _A(self, fraction):
+        if self._rattles > 1:
+            self.addComputeGlobal('irattle', '0')
+            self.beginWhileBlock(f'irattle < {self._rattles}')
+        self.addComputePerDof('x', f'x + {fraction/max(1, self._rattles)}*dt*v')
+        if self._rattles > 0:
+            self.addComputePerDof('x0', 'x')
+            self.addConstrainPositions()
+            self.addComputePerDof('v', f'v + (x - x0)/({fraction/max(1, self._rattles)}*dt)')
+            self.addConstrainVelocities()
+        if self._rattles > 1:
+            self.addComputeGlobal('irattle', 'irattle + 1')
+            self.endBlock()
+        self.addComputePerParameter('x', f'x + {fraction}*dt*v')
+
+    def _B(self, fraction):
+        self.addComputePerDof('v', f'v + {fraction}*dt*f/m')
+        self._rattles > 0 and self.addConstrainVelocities()
+        self.addComputePerParameter('v', f'v + {fraction}*dt*f/m')
+
+    def _O(self, fraction):
+        expression = 'z*v + sqrt((1 - z*z)*kT/m)*gaussian'
+        expression += f'; z = exp(-{fraction}*friction*dt)'
+        self.addComputePerDof('v', expression)
+        self._rattles > 0 and self.addConstrainVelocities()
+        self.addComputePerParameter('v', expression)
