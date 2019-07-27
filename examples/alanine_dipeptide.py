@@ -85,7 +85,8 @@ data_reporter = afed.StateDataReporter(
     potentialEnergy=True,
     temperature=True,
     collectiveVariables=True,
-    DriverParameters=True,
+    driverParameters=True,
+    parameterTemperatures=True,
     speed=True,
 )
 
