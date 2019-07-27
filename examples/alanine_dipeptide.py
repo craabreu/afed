@@ -77,14 +77,16 @@ simulation.context.setPositions(positions)
 simulation.minimizeEnergy()
 simulation.context.setVelocitiesToTemperature(temp)
 
-data_reporter = afed.ExtendedStateDataReporter(
+data_reporter = afed.StateDataReporter(
     afed.MultipleFiles(stdout, 'alanine_dipeptide.csv'),
     10,
+    afedIntegrator=integrator,
     step=True,
     potentialEnergy=True,
     temperature=True,
+    collectiveVariables=True,
+    DriverParameters=True,
     speed=True,
-    drivingForce=dihedrals,
 )
 
 pdb_reporter = openmm.app.PDBReporter(

@@ -44,26 +44,36 @@ class MultipleFiles:
             output.flush()
 
 
-class ExtendedStateDataReporter(app.StateDataReporter):
+class StateDataReporter(app.StateDataReporter):
     """
     An extension of OpenMM's StateDataReporter_ class, which outputs information about a simulation,
-    such as energy and temperature, to a file.
+    such as energy, temperature, etc.
 
     All original functionalities of StateDataReporter_ are preserved.
 
-    Besides, it is possible to report the current values of all collective variables and driver
-    parameters associated to a passed `~afed.afed.DrivingForce` object.
+    Besides, it is possible to report the current values of all collective variables, driver
+    parameters, and other properties associated to a passed AFED integrator.
+
+    Parameters
+    ----------
+        afedIntegrator : afed.integrators, default=None
+            An object of any class defined in :mod:`afed.integrators`.
 
     Keyword Args
     ------------
-        drivingForce : DrivingForce, default=None
-            A :class:`~afed.afed.DrivingForce` whose associated collective variables and driver parameters
-            will be reported.
+        collectiveVariables : bool, defaul=False
+            Whether to output the values of the collective variables included in the integrator's
+            :class:`~afed.afed.DrivingForce`.
+        DriverParameters : bool, defaul=False
+            Whether to output the values of the driver parameters included in the integrator's
+            :class:`~afed.afed.DrivingForce`.
 
     """
 
-    def __init__(self, file, reportInterval, **kwargs):
-        self._drivingForce = kwargs.pop('drivingForce', None)
+    def __init__(self, file, reportInterval, afedIntegrator, **kwargs):
+        self._afed_integrator = afedIntegrator
+        self._collective_variables = kwargs.pop('collectiveVariables', False)
+        self._driver_parameters = kwargs.pop('DriverParameters', False)
         super().__init__(file, reportInterval, **kwargs)
         self._backSteps = -sum([self._speed, self._elapsedTime, self._remainingTime])
 
@@ -75,18 +85,24 @@ class ExtendedStateDataReporter(app.StateDataReporter):
 
     def _constructHeaders(self):
         headers = super()._constructHeaders()
-        if self._drivingForce is not None:
-            for cv in self._drivingForce._driven_variables:
-                self._add_item(headers, f'{cv._name} ({cv._dimension})')
-            for parameter in self._drivingForce._driver_parameters:
-                self._add_item(headers, f'{parameter._name} ({parameter._dimension})')
+        if self._afed_integrator is not None:
+            driving_force = self._afed_integrator._driving_force
+            if self._collective_variables:
+                for cv in driving_force._driven_variables:
+                    self._add_item(headers, f'{cv._name} ({cv._dimension})')
+            if self._driver_parameters:
+                for parameter in driving_force._driver_parameters:
+                    self._add_item(headers, f'{parameter._name} ({parameter._dimension})')
         return headers
 
     def _constructReportValues(self, simulation, state):
         values = super()._constructReportValues(simulation, state)
-        if self._drivingForce is not None:
-            for cv in self._drivingForce.getCollectiveVariableValues(simulation.context):
-                self._add_item(values, cv)
-            for parameter in self._drivingForce._driver_parameters:
-                self._add_item(values, simulation.context.getParameter(parameter._name))
+        if self._afed_integrator is not None:
+            driving_force = self._afed_integrator._driving_force
+            if self._collective_variables:
+                for cv in driving_force.getCollectiveVariableValues(simulation.context):
+                    self._add_item(values, cv)
+            if self._driver_parameters:
+                for parameter in driving_force._driver_parameters:
+                    self._add_item(values, simulation.context.getParameter(parameter._name))
         return values
