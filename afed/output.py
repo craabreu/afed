@@ -21,12 +21,11 @@ class MultipleFiles:
 
     Parameters
     ----------
-        outputs : list
-            A list of valid outputs (file names and/or output streams).
+        A list of valid outputs (file names and/or output streams).
 
     """
 
-    def __init__(self, files):
+    def __init__(self, *files):
         self._files = list()
         for output in files:
             self._files.append(open(output, 'w') if isinstance(output, str) else output)
