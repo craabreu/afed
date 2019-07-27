@@ -369,14 +369,20 @@ class MiddleSchemeAFEDIntegrator(CustomIntegrator):
             The step size with which to integrate the system.
         drivingForce : :class:`DrivingForce`
             The AFED driving force.
-        respaLoops : list(int), optional, default=None
+
+    Keyword Args
+    ------------
+        respaLoops : list(int), default=None
             A list of N integers, where ``respaLoops[k]`` determines how many iterations at time
             scale `k` are internally executed for every iteration at time scale `k+1`. If this is
             ``None``, then integration will take place at a single time scale.
+        parameterLoops : int, default = 1
+            The number of loops with which to subdivide the integration of driver parameters and
+            their attached thermostats.
 
     """
 
-    def __init__(self, temperature, stepSize, drivingForce, respaLoops):
+    def __init__(self, temperature, stepSize, drivingForce, respaLoops=None, parameterLoops=1):
         super().__init__(stepSize, drivingForce)
         kT = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*temperature
         self.addGlobalVariable('kT', kT)
@@ -385,7 +391,10 @@ class MiddleSchemeAFEDIntegrator(CustomIntegrator):
             for scale, nsteps in enumerate(respaLoops):
                 if nsteps > 1:
                     self.addGlobalVariable(f'irespa{scale}', 0)
-        self.addThermostat(lambda fraction, compute: None)
+        self._parameterLoops = parameterLoops
+        if parameterLoops > 1:
+            self.addGlobalVariable('iparam', 0)
+        self.addThermostat(lambda fraction, addCompute: None)
         self.addUpdateContextState()
 
     def _integrate_particles_respa(self, fraction, scale):
@@ -430,9 +439,16 @@ class MiddleSchemeAFEDIntegrator(CustomIntegrator):
             self._integrate_particles_respa(fraction, len(self._respaLoops)-1)
 
     def addIntegrateParameters(self, fraction):
-        self._move(0.5, self.addComputePerParameter)
-        self._bath(1.0, self.addComputePerParameter)
-        self._move(0.5, self.addComputePerParameter)
+        n = self._parameterLoops
+        if n > 1:
+            self.addComputeGlobal('iparam', '0')
+            self.beginWhileBlock(f'iparam < {n}')
+        self._move(0.5*fraction/n, self.addComputePerParameter)
+        self._bath(fraction/n, self.addComputePerParameter)
+        self._move(0.5*fraction/n, self.addComputePerParameter)
+        if n > 1:
+            self.addComputeGlobal('iparam', 'iparam + 1')
+            self.endBlock()
 
 
 class MassiveNHCIntegrator(MiddleSchemeAFEDIntegrator):
@@ -453,26 +469,32 @@ class MassiveNHCIntegrator(MiddleSchemeAFEDIntegrator):
             The step size with which to integrate the system.
         drivingForce : :class:`DrivingForce`
             The AFED driving force.
-        respaLoops : list(int), optional, default=None
+
+    Keyword Args
+    ------------
+        respaLoops : list(int), default=None
+            See :class:`MiddleSchemeAFEDIntegrator`.
+        parameterLoops : int, default = 1
             See :class:`MiddleSchemeAFEDIntegrator`.
 
     """
-    def __init__(self, temperature, timeScale, stepSize, drivingForce, respaLoops=None):
-        super().__init__(temperature, stepSize, drivingForce, respaLoops)
+
+    def __init__(self, temperature, timeScale, stepSize, drivingForce, **kwargs):
+        super().__init__(temperature, stepSize, drivingForce, **kwargs)
         kT = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*temperature
         for i in range(2):
             self.addGlobalVariable(f'Q{i+1}', kT*timeScale**2)
             self.addPerDofVariable(f'v{i+1}', 0)
             self.addPerParameterVariable(f'v{i+1}', 0)
 
-        def NoseHooverChain(fraction, compute):
-            compute('v2', f'v2 + {fraction/2}*dt*(Q1*v1^2 - kT)/Q2')
-            compute('v1', f'v1*exp(-{fraction/2}*dt*v2)')
-            compute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
-            compute('v', f'v*exp(-{fraction}*dt*v1)')
-            compute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
-            compute('v1', f'v1*exp(-{fraction/2}*dt*v2)')
-            compute('v2', f'v2 + {fraction/2}*dt*(Q1*v1^2 - kT)/Q2')
+        def NoseHooverChain(fraction, addCompute):
+            addCompute('v2', f'v2 + {fraction/2}*dt*(Q1*v1^2 - kT)/Q2')
+            addCompute('v1', f'v1*exp(-{fraction/2}*dt*v2)')
+            addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
+            addCompute('v', f'v*exp(-{fraction}*dt*v1)')
+            addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
+            addCompute('v1', f'v1*exp(-{fraction/2}*dt*v2)')
+            addCompute('v2', f'v2 + {fraction/2}*dt*(Q1*v1^2 - kT)/Q2')
 
         self.addThermostat(NoseHooverChain)
         self.addIntegrateParticles(0.5)
