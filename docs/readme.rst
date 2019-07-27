@@ -2,7 +2,7 @@
 Overview
 ========
 
-AFED is an OpenMM customization developed by the ATOMS group at UFRJ/Brazil.
+AFED is an OpenMM extension for applying the Adiabatic Free Energy Dynamics method.
 
 * Free software: MIT license
 

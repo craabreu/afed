@@ -4,8 +4,8 @@ Glossary
 
 .. glossary::
 
-    ODE
-        Ordinary Differential Equation
+    AFED
+        Adiabatic Free Energy Dynamics
 
-    SDE
-        Stochastic Differential Equation
+    NHC
+        Nosé-Hoover Chain

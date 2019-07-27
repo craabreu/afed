@@ -4,6 +4,6 @@ Installation
 
 At the command line::
 
-    git clone https://github.com/atoms-ufrj/afed.git
+    git clone https://github.com/craabreu/afed.git
     cd afed
     python setup.py install

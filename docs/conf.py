@@ -38,8 +38,8 @@ release = ''
 pygments_style = 'trac'
 templates_path = ['.']
 extlinks = {
-    'issue': ('https://github.com/atoms-ufrj/afed/issues/%s', '#'),
-    'pr': ('https://github.com/atoms-ufrj/afed/pull/%s', 'PR #'),
+    'issue': ('https://github.com/craabreu/afed/issues/%s', '#'),
+    'pr': ('https://github.com/craabreu/afed/pull/%s', 'PR #'),
 }
 # on_rtd is whether we are on readthedocs.org
 on_rtd = os.environ.get('READTHEDOCS', None) == 'True'

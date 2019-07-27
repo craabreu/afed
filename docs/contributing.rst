@@ -8,7 +8,7 @@ little bit helps, and credit will always be given.
 Bug reports
 ===========
 
-When `reporting a bug <https://github.com/atoms-ufrj/afed/issues>`_ please include:
+When `reporting a bug <https://github.com/craabreu/afed/issues>`_ please include:
 
     * Your operating system name and version.
     * Any details about your local setup that might be helpful in troubleshooting.
@@ -24,7 +24,7 @@ articles, and such.
 Feature requests and feedback
 =============================
 
-The best way to send feedback is to file an issue at https://github.com/atoms-ufrj/afed/issues.
+The best way to send feedback is to file an issue at https://github.com/craabreu/afed/issues.
 
 If you are proposing a feature:
 
@@ -37,16 +37,19 @@ Development
 
 Prerequisites:
 
-1. Anaconda or Miniconda
+1. pytest and pytest-cov
 
-2. Conda virtualenv
+2. isort
 
-3. Tox
+3. flake8
+
+4. autopep8 (recommended)
 
 To set up `afed` for local development:
 
-1. Fork `afed <https://github.com/atoms-ufrj/afed>`_
+1. Fork `afed <https://github.com/craabreu/afed>`_
    (look for the "Fork" button).
+
 2. Clone your fork locally::
 
     git clone git@github.com:your_name_here/afed.git
@@ -59,7 +62,7 @@ To set up `afed` for local development:
 
 4. When you're done making changes, run all the checks, doc builder and spell checker with `tox <http://tox.readthedocs.io/en/latest/install.html>`_ one command::
 
-    tox
+    devtools/run_tests.sh
 
 5. Commit your changes and push your branch to GitHub::
 
@@ -76,23 +79,20 @@ If you need some code review or feedback while you're developing the code just m
 
 For merging, you should:
 
-1. Include passing tests (run ``tox``) [1]_.
+1. Include passing tests (run ``devtools/run_tests.sh``) [1]_.
 2. Update documentation when there's new API, functionality etc.
-3. Add a note to ``CHANGELOG.rst`` about the changes.
-4. Add yourself to ``AUTHORS.rst``.
+3. Add a note to ``docs/changelog.rst`` about the changes.
+4. Add yourself to ``docs/authors.rst``.
 
 .. [1] If you don't have all the necessary python versions available locally you can rely on Travis - it will
-       `run the tests <https://travis-ci.org/atoms-ufrj/afed/pull_requests>`_ for each change you add in the pull request.
+       `run the tests <https://travis-ci.org/craabreu/afed/pull_requests>`_ for each change you add in the pull request.
 
        It will be slower though ...
 
 Tips
 ----
 
-To run a subset of tests::
+To help formatting your code, run::
 
-    tox -e envname -- py.test -k test_myfeature
-
-To run all the test environments in *parallel* (you need to ``pip install detox``)::
-
-    detox
+    autopep8 --in-place afed/<modified-file>.py
+    isort afed/<modified-file>.py
