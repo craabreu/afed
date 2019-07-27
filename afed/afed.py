@@ -164,6 +164,7 @@ class DrivingForce(openmm.CustomCVForce):
 
     def __init__(self, energy):
         super().__init__(energy)
+        self._driven_variables = []
         self._driver_parameters = []
 
     def __repr__(self):
@@ -182,6 +183,7 @@ class DrivingForce(openmm.CustomCVForce):
 
         """
 
+        self._driven_variables.append(variable)
         self._driver_parameters.append(parameter)
         self.addCollectiveVariable(variable._name, variable._variable)
         self.addGlobalParameter(parameter._name, parameter._initial_value)

@@ -28,7 +28,7 @@ class CustomIntegrator(openmm.CustomIntegrator):
     ----------
         stepSize : unit.Quantity
             The step size with which to integrate the system.
-        drivingForce : :class:`DrivingForce`
+        drivingForce : :class:`~afed.afed.DrivingForce`
             The AFED driving force.
 
     """
@@ -149,7 +149,7 @@ class MassiveMiddleSchemeIntegrator(CustomIntegrator):
     through the keyword argument ``respaLoops`` (see below). The size of this list determines the
     number of considered time scales. Among the Force_ objects that belong to the simulated System_,
     only those whose force groups have been set to `k` will be considered at time scale `ḱ`. This
-    includes the AFED-related :class:`DrivingForce`.
+    includes the AFED-related :class:`~afed.afed.DrivingForce`.
 
     Parameters
     ----------
@@ -157,7 +157,7 @@ class MassiveMiddleSchemeIntegrator(CustomIntegrator):
             The temperature of the heat bath which the particles are attached to.
         stepSize : unit.Quantity
             The step size with which to integrate the system.
-        drivingForce : :class:`DrivingForce`
+        drivingForce : :class:`~afed.afed.DrivingForce`
             The AFED driving force.
 
     Keyword Args
@@ -247,7 +247,7 @@ class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
     AFED driver parameters. In this implementation, each chain is composed of two thermostats in
     series.
 
-    All other properties of this integrator are inherited from :class:`MiddleSchemeAFEDIntegrator`.
+    All other properties of this integrator are inherited from :class:`MassiveMiddleSchemeIntegrator`.
 
     Parameters
     ----------
@@ -257,15 +257,15 @@ class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
             The characteristic time scale of the thermostat chains.
         stepSize : unit.Quantity
             The step size with which to integrate the system.
-        drivingForce : :class:`DrivingForce`
+        drivingForce : :class:`~afed.afed.DrivingForce`
             The AFED driving force.
 
     Keyword Args
     ------------
         respaLoops : list(int), default=None
-            See :class:`MiddleSchemeAFEDIntegrator`.
+            See :class:`MassiveMiddleSchemeIntegrator`.
         parameterLoops : int, default = 1
-            See :class:`MiddleSchemeAFEDIntegrator`.
+            See :class:`MassiveMiddleSchemeIntegrator`.
 
     """
 
@@ -297,7 +297,7 @@ class _MassiveGGMTIntegrator(MassiveMiddleSchemeIntegrator):
     an independent GGM thermostat is attached to each degree of freedom, including the AFED driver
     parameters.
 
-    All other properties of this integrator are inherited from :class:`MiddleSchemeAFEDIntegrator`.
+    All other properties of this integrator are inherited from :class:`MassiveMiddleSchemeIntegrator`.
 
     Parameters
     ----------
@@ -307,15 +307,15 @@ class _MassiveGGMTIntegrator(MassiveMiddleSchemeIntegrator):
             The characteristic time scale of the GGM thermostats.
         stepSize : unit.Quantity
             The step size with which to integrate the system.
-        drivingForce : :class:`DrivingForce`
+        drivingForce : :class:`~afed.afed.DrivingForce`
             The AFED driving force.
 
     Keyword Args
     ------------
         respaLoops : list(int), default=None
-            See :class:`MiddleSchemeAFEDIntegrator`.
+            See :class:`MassiveMiddleSchemeIntegrator`.
         parameterLoops : int, default = 1
-            See :class:`MiddleSchemeAFEDIntegrator`.
+            See :class:`MassiveMiddleSchemeIntegrator`.
 
     """
 

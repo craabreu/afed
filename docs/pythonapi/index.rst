@@ -6,6 +6,7 @@ Python API
 
     afed
     integrators
+    output
 
 
 .. testsetup::
