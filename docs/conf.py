@@ -65,3 +65,4 @@ linkcheck_ignore = [
 ]
 
 autodoc_member_order = 'bysource'
+add_module_names = False

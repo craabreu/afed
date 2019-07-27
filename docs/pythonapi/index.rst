@@ -5,6 +5,7 @@ Python API
     :glob:
 
     afed
+    integrators
 
 
 .. testsetup::
