@@ -6,6 +6,7 @@ Adiabatic Free Energy Dynamics with OpenMM
 
 from ._version import get_versions
 from .afed import *  # noqa: F401, F403
+from .integrators import *  # noqa: F401, F403
 
 # Handle versioneer:
 versions = get_versions()

@@ -129,14 +129,14 @@ class CustomIntegrator(openmm.CustomIntegrator):
         return index
 
 
-class MiddleSchemeAFEDIntegrator(CustomIntegrator):
+class MassiveMiddleSchemeIntegrator(CustomIntegrator):
     """
     An abstract class aimed at facilitating the implementation of different AFED integrators that
     differ on the employed thermostat but share the following features:
 
     1. Integration of particle-related degrees of freedom is done by using a middle-type scheme
-    (i.e. kick-move-bath-move-kick), possibly involving multiple time stepping (RESPA), and the
-    system does not have any holonomic constraints.
+    :cite:`Zhang_2017` (i.e. kick-move-bath-move-kick), possibly involving multiple time stepping
+    (RESPA) :cite:`Tuckerman_1992`, and the system does not have any holonomic constraints.
 
     2. Integration of driver parameters and their attached thermostats is done with a middle-type
     scheme as well, and is detached from the integration of all other dynamic variables, including
@@ -184,7 +184,6 @@ class MiddleSchemeAFEDIntegrator(CustomIntegrator):
         self._parameterLoops = parameterLoops
         if parameterLoops > 1:
             self.addGlobalVariable('iparam', 0)
-        self.addThermostat(lambda fraction, addCompute: None)
         self.addUpdateContextState()
 
     def _integrate_particles_respa(self, fraction, scale):
@@ -213,14 +212,14 @@ class MiddleSchemeAFEDIntegrator(CustomIntegrator):
         self._kick(fraction/2, self.addComputePerDof, group)
         self._kick(fraction/2, self.addComputePerParameter, group)
 
-    def _move(self, fraction, compute):
-        compute('x', f'x + {fraction}*dt*v')
+    def _move(self, fraction, addCompute):
+        addCompute('x', f'x + {fraction}*dt*v')
 
-    def _kick(self, fraction, compute, group=''):
-        compute('v', f'v + {fraction}*dt*f{group}/m')
+    def _kick(self, fraction, addCompute, group=''):
+        addCompute('v', f'v + {fraction}*dt*f{group}/m')
 
-    def addThermostat(self, function):
-        self._bath = function
+    def _bath(self, fraction, addCompute):
+        pass
 
     def addIntegrateParticles(self, fraction):
         if self._respaLoops is None:
@@ -241,11 +240,12 @@ class MiddleSchemeAFEDIntegrator(CustomIntegrator):
             self.endBlock()
 
 
-class MassiveNHCIntegrator(MiddleSchemeAFEDIntegrator):
+class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
     """
-    An AFED integrator based on the massive Nosé-Hoover Chain thermostat. This means that an
-    independent thermostat chain is attached to each degree of freedom, including the AFED driver
-    parameters. In this implementation, each chain is composed of two thermostats in series.
+    An AFED integrator based on the massive Nosé-Hoover Chain thermostat :cite:`Martyna_1992`. This
+    means that an independent thermostat chain is attached to each degree of freedom, including the
+    AFED driver parameters. In this implementation, each chain is composed of two thermostats in
+    series.
 
     All other properties of this integrator are inherited from :class:`MiddleSchemeAFEDIntegrator`.
 
@@ -277,22 +277,21 @@ class MassiveNHCIntegrator(MiddleSchemeAFEDIntegrator):
             self.addPerDofVariable(f'v{i+1}', 0)
             self.addPerParameterVariable(f'v{i+1}', 0)
 
-        def NoseHooverChain(fraction, addCompute):
-            addCompute('v2', f'v2 + {fraction/2}*dt*(Q1*v1^2 - kT)/Q2')
-            addCompute('v1', f'v1*exp(-{fraction/2}*dt*v2)')
-            addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
-            addCompute('v', f'v*exp(-{fraction}*dt*v1)')
-            addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
-            addCompute('v1', f'v1*exp(-{fraction/2}*dt*v2)')
-            addCompute('v2', f'v2 + {fraction/2}*dt*(Q1*v1^2 - kT)/Q2')
-
-        self.addThermostat(NoseHooverChain)
         self.addIntegrateParticles(0.5)
         self.addIntegrateParameters(1)
         self.addIntegrateParticles(0.5)
 
+    def _bath(self, fraction, addCompute):
+        addCompute('v2', f'v2 + {fraction/2}*dt*(Q1*v1^2 - kT)/Q2')
+        addCompute('v1', f'v1*exp(-{fraction/2}*dt*v2)')
+        addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
+        addCompute('v', f'v*exp(-{fraction}*dt*v1)')
+        addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
+        addCompute('v1', f'v1*exp(-{fraction/2}*dt*v2)')
+        addCompute('v2', f'v2 + {fraction/2}*dt*(Q1*v1^2 - kT)/Q2')
 
-class _MassiveGGMTIntegrator(MiddleSchemeAFEDIntegrator):
+
+class _MassiveGGMTIntegrator(MassiveMiddleSchemeIntegrator):
     """
     An AFED integrator based on the massive Generalized Gaussian Moment thermostat. This means that
     an independent GGM thermostat is attached to each degree of freedom, including the AFED driver
@@ -328,19 +327,18 @@ class _MassiveGGMTIntegrator(MiddleSchemeAFEDIntegrator):
             self.addPerDofVariable(f'v{i+1}', 1)
             self.addPerParameterVariable(f'v{i+1}', 1)
 
-        def GGMT(fraction, addCompute):
-            addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
-            addCompute('v2', f'v2 + {fraction/2}*dt*(m^2*v^4/3 - kT^2)/Q2')
-            addCompute('v', f'v*exp(-{fraction/2}*dt*v1)')
-            addCompute('v', f'v/sqrt(z+z*y-y); z=exp(2*{fraction}*dt*kT*v2); y=m*v^2/(3*kT)')
-            addCompute('v', f'v*exp(-{fraction/2}*dt*v1)')
-            addCompute('v2', f'v2 + {fraction/2}*dt*(m^2*v^4/3 - kT^2)/Q2')
-            addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
-
-        self.addThermostat(GGMT)
         self.addIntegrateParticles(0.5)
         self.addIntegrateParameters(1)
         self.addIntegrateParticles(0.5)
+
+    def _bath(self, fraction, addCompute):
+        addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
+        addCompute('v2', f'v2 + {fraction/2}*dt*(m^2*v^4/3 - kT^2)/Q2')
+        addCompute('v', f'v*exp(-{fraction/2}*dt*v1)')
+        addCompute('v', f'v/sqrt(z+z*y-y); z=exp(2*{fraction}*dt*kT*v2); y=m*v^2/(3*kT)')
+        addCompute('v', f'v*exp(-{fraction/2}*dt*v1)')
+        addCompute('v2', f'v2 + {fraction/2}*dt*(m^2*v^4/3 - kT^2)/Q2')
+        addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
 
 
 class _BAOABIntegrator(CustomIntegrator):
