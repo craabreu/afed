@@ -502,7 +502,58 @@ class MassiveNHCIntegrator(MiddleSchemeAFEDIntegrator):
         self.addIntegrateParticles(0.5)
 
 
-class BAOABIntegrator(CustomIntegrator):
+class _MassiveGGMTIntegrator(MiddleSchemeAFEDIntegrator):
+    """
+    An AFED integrator based on the massive Generalized Gaussian Moment thermostat. This means that
+    an independent GGM thermostat is attached to each degree of freedom, including the AFED driver
+    parameters.
+
+    All other properties of this integrator are inherited from :class:`MiddleSchemeAFEDIntegrator`.
+
+    Parameters
+    ----------
+        temperature : unit.Quantity
+            The temperature of the heat bath which the particles are attached to.
+        timeScale : unit.Quantity
+            The characteristic time scale of the GGM thermostats.
+        stepSize : unit.Quantity
+            The step size with which to integrate the system.
+        drivingForce : :class:`DrivingForce`
+            The AFED driving force.
+
+    Keyword Args
+    ------------
+        respaLoops : list(int), default=None
+            See :class:`MiddleSchemeAFEDIntegrator`.
+        parameterLoops : int, default = 1
+            See :class:`MiddleSchemeAFEDIntegrator`.
+
+    """
+
+    def __init__(self, temperature, timeScale, stepSize, drivingForce, **kwargs):
+        super().__init__(temperature, stepSize, drivingForce, **kwargs)
+        kT = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*temperature
+        for i, A in enumerate([kT, 8*kT**3/3]):
+            self.addGlobalVariable(f'Q{i+1}', A*timeScale**2)
+            self.addPerDofVariable(f'v{i+1}', 1)
+            self.addPerParameterVariable(f'v{i+1}', 1)
+
+        def GGMT(fraction, addCompute):
+            addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
+            addCompute('v2', f'v2 + {fraction/2}*dt*(m^2*v^4/3 - kT^2)/Q2')
+            addCompute('v', f'v*exp(-{fraction/2}*dt*v1)')
+            addCompute('v', f'v/sqrt(z+z*y-y); z=exp(2*{fraction}*dt*kT*v2); y=m*v^2/(3*kT)')
+            addCompute('v', f'v*exp(-{fraction/2}*dt*v1)')
+            addCompute('v2', f'v2 + {fraction/2}*dt*(m^2*v^4/3 - kT^2)/Q2')
+            addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
+
+        self.addThermostat(GGMT)
+        self.addIntegrateParticles(0.5)
+        self.addIntegrateParameters(1)
+        self.addIntegrateParticles(0.5)
+
+
+class _BAOABIntegrator(CustomIntegrator):
     def __init__(self, temperature, frictionCoeff, stepSize, drivingForce, numRattles=0):
         super().__init__(stepSize, drivingForce)
         self._rattles = numRattles
