@@ -69,9 +69,21 @@ class CustomIntegrator(openmm.CustomIntegrator):
             readable_lines.append(line)
         return '\n'.join(readable_lines)
 
-    def addPerParameterVariable(self, name, value):
+    def addPerParameterVariable(self, name, initialValue):
+        """
+        Defines a new per-driver-parameter variable.
+
+        Parameters
+        ----------
+            variable : str
+                The name of the per-driver-parameter variable.
+            initialValue : unit.Quantity
+                The value initially assigned to the new variable, for all driver parameters.
+
+        """
+
         for parameter in self._driving_force._driver_parameters:
-            self.addGlobalVariable(f'{name}_{parameter._name}', value)
+            self.addGlobalVariable(f'{name}_{parameter._name}', initialValue)
         self._per_parameter_variables.add(name)
 
     def addComputePerParameter(self, variable, expression):
