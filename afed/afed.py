@@ -264,10 +264,11 @@ class HarmonicDrivingForce(DrivingForce):
         Example
         -------
             >>> import afed
+            >>> from copy import deepcopy
             >>> from simtk import unit
             >>> model = afed.AlanineDipeptideModel()
-            >>> psi, _ = model.getCollectiveVariables()
-            >>> psi_driver, _ = model.getDriverParameters()
+            >>> psi, phi = model.getCollectiveVariables(copy=True)
+            >>> psi_driver, phi_driver = model.getDriverParameters()
             >>> K = 2.78E3*unit.kilocalories_per_mole/unit.radians**2
             >>> force = afed.HarmonicDrivingForce()
             >>> force.addPair(psi, psi_driver, K)

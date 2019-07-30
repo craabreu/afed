@@ -13,6 +13,7 @@
 import afed
 import os
 
+from copy import deepcopy
 from simtk import openmm, unit
 from simtk.openmm import app
 
@@ -27,7 +28,7 @@ class TestModel:
             list(openmm.Vec3)
 
         """
-        return self._pdb.positions
+        return self._positions
 
     def getSystem(self):
         """
@@ -49,7 +50,7 @@ class TestModel:
             openmm.app.Topology
 
         """
-        return self._pdb.topology
+        return self._topology
 
 
 class AlanineDipeptideModel(TestModel):
@@ -58,7 +59,9 @@ class AlanineDipeptideModel(TestModel):
 
     """
     def __init__(self):
-        pdb = self._pdb = app.PDBFile(os.path.join('afed', 'data', 'alanine-dipeptide.pdb'))
+        pdb = app.PDBFile(os.path.join('afed', 'data', 'alanine-dipeptide.pdb'))
+        self._topology = pdb.topology
+        self._positions = pdb.positions
         forcefield = app.ForceField('amber10.xml')
         self._system = forcefield.createSystem(
             pdb.topology,
@@ -86,6 +89,11 @@ class AlanineDipeptideModel(TestModel):
                                                 minval, maxval, periodic=True)
         self._phi_driver = afed.DriverParameter('phi_s', unit.radians, value, T, velocity_scale,
                                                 minval, maxval, periodic=True)
+        self._driving_force = afed.HarmonicDrivingForce()
+        K = 2.78E3*unit.kilocalories_per_mole/unit.radians**2
+        self._driving_force.addPair(self._psi, self._psi_driver, K)
+        self._driving_force.addPair(self._phi, self._phi_driver, K)
+        self._system.addForce(self._driving_force)
 
     def getDihedralAngles(self):
         """
@@ -99,17 +107,28 @@ class AlanineDipeptideModel(TestModel):
         """
         return self._psi_angle, self._phi_angle
 
-    def getCollectiveVariables(self):
+    def getCollectiveVariables(self, copy=False):
         """
         Gets driven collective variables concerning the Ramachandran dihedral angles.
 
+        .. warning::
+            The returned :class:`~afed.afed.DrivenCollectiveVariable` objects will be bound to an existing
+            :class:`~afed.afed.HarmonicDrivingForce`, unless the keyword ``copy`` is set to ``True``.
+
+        Keyword Args
+        ------------
+            copy : bool, default=False
+                Whether to return a copy of the driven collective variables instead of the
+                original objects.
 
         Returns
         -------
             psi, phi : DrivenCollectiveVariable
 
         """
-        return self._psi, self._phi
+        psi = deepcopy(self._psi) if copy else self._psi
+        phi = deepcopy(self._phi) if copy else self._phi
+        return psi, phi
 
     def getDriverParameters(self):
         """
@@ -121,3 +140,14 @@ class AlanineDipeptideModel(TestModel):
 
         """
         return self._psi_driver, self._phi_driver
+
+    def getDrivingForce(self):
+        """
+        Gets the (harmonic) driving force associated to the Ramachandran dihedral angles.
+
+        Returns
+        -------
+            HarmonicDrivingForce
+
+        """
+        return self._driving_force

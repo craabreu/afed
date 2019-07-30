@@ -24,6 +24,15 @@ class MultipleFiles:
     ----------
         A list of valid outputs (file names and/or output streams).
 
+    Example
+    -------
+        >>> import afed
+        >>> import tempfile
+        >>> from sys import stdout
+        >>> file = tempfile.TemporaryFile(mode='w+t')
+        >>> print('test', file=afed.MultipleFiles(stdout, file))
+        test
+
     """
 
     def __init__(self, *files):
@@ -57,7 +66,12 @@ class StateDataReporter(app.StateDataReporter):
 
     Parameters
     ----------
-        afedIntegrator : afed.integrators, default=None
+        file : str or stream or afed.MultipleFiles
+            The file to write to, specified as a file name, file object, or
+            :class:`~afed.output.MultipleFiles` object.
+        reportInterval : int
+            The interval (in time steps) at which to report state data.
+        afedIntegrator : afed.CustomIntegrator
             An object of any class defined in :mod:`afed.integrators`.
 
     Keyword Args
@@ -71,6 +85,33 @@ class StateDataReporter(app.StateDataReporter):
         parameterTemperatures : bool, defaul=False
             Whether to output the "instantaneous temperatures" of the driver parameters included
             in the integrator's :class:`~afed.afed.DrivingForce`.
+
+    Example
+    -------
+        >>> import afed
+        >>> from sys import stdout
+        >>> from simtk import openmm, unit
+        >>> model = afed.AlanineDipeptideModel()
+        >>> integrator = afed.MassiveMiddleNHCIntegrator(
+        ...     300*unit.kelvin,
+        ...     100*unit.femtoseconds,
+        ...     1*unit.femtosecond,
+        ...     model.getDrivingForce(),
+        ... )
+        >>> simulation = openmm.app.Simulation(model.getTopology(), model.getSystem(), integrator)
+        >>> simulation.context.setPositions(model.getPositions())
+        >>> reporter = afed.StateDataReporter(
+        ...     stdout,
+        ...     1,
+        ...     integrator,
+        ...     step=True,
+        ...     collectiveVariables=True,
+        ...     driverParameters=True,
+        ...     parameterTemperatures=True,
+        ... )
+        >>> reporter.report(simulation, simulation.context.getState())
+        #"Step","psi (radian)","psi (radian)","psi_s (radian)","phi_s (radian)","T_psi_s (K)","T_phi_s (K)"
+        0,3.141592653589793,3.141592653589793,3.141592653589793,3.141592653589793,0.0,0.0
 
     """
 
