@@ -42,7 +42,7 @@ install:
 
 
 script:
-  - pytest -v --cov=afed --doctest-modules afed/tests/
+  - pytest -v --cov=afed --doctest-modules afed/
 
 notifications:
     email: false

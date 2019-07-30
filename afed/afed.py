@@ -42,12 +42,13 @@ class DrivenCollectiveVariable(object):
 
     Example
     -------
+        >>> import afed
         >>> from simtk import openmm, unit
         >>> cv = openmm.CustomTorsionForce('theta')
         >>> cv_index = cv.addTorsion(0, 1, 2, 3, [])
-        >>> psi = DrivenCollectiveVariable('psi', cv, unit.radians, period=360*unit.degrees)
+        >>> psi = afed.DrivenCollectiveVariable('psi', cv, unit.radians, period=360*unit.degrees)
         >>> print(psi)
-        psi, dimension=radian, period=360 degrees
+        psi, dimension=radian, period=360 deg
 
     """
 
@@ -77,6 +78,16 @@ class DrivenCollectiveVariable(object):
         Returns
         -------
             unit.Quantity
+
+        Example
+        -------
+            >>> import afed
+            >>> from simtk import unit
+            >>> model = afed.AlanineDipeptideModel()
+            >>> psi_angle, _ = model.getDihedralAngles()
+            >>> psi = afed.DrivenCollectiveVariable('psi', psi_angle, unit.radians, period=360*unit.degrees)
+            >>> psi.evaluate(model.getPositions())
+            Quantity(value=3.141592653589793, unit=radian)
 
         """
 
@@ -128,6 +139,19 @@ class DriverParameter(object):
             Whether the driver parameter is a periodic quantity with period equal to the difference
             between ``upperBound`` and ``lowerBound``.
 
+    Example
+    -------
+        >>> import afed
+        >>> from simtk import unit
+        >>> model = afed.AlanineDipeptideModel()
+        >>> psi_angle, _ = model.getDihedralAngles()
+        >>> psi = afed.DrivenCollectiveVariable('psi', psi_angle, unit.radians, period=360*unit.degrees)
+        >>> psi_value = psi.evaluate(model.getPositions())
+        >>> afed.DriverParameter('psi_s', unit.radians, psi_value,
+        ...                      1500*unit.kelvin, 0.003*unit.radians/unit.femtosecond,
+        ...                      -180*unit.degrees, 180*unit.degrees, periodic=True)
+        psi_s, initial value=3.141592653589793 rad
+
     """
 
     def __init__(self, name, dimension, initialValue, temperature, velocityScale,
@@ -145,7 +169,28 @@ class DriverParameter(object):
             raise Exception('Bounds must be defined for a periodic driver parameter')
 
     def __repr__(self):
-        return f'{self._name}, initial value={self._initial_value}, kT={self._kT}, mass={self._mass}'
+        return f'{self._name}, initial value={self._initial_value}'
+
+    def getMass(self):
+        """
+        Gets the mass associated to the driver parameter.
+
+        Returns
+        -------
+            mass : unit.Quantity
+
+        Example
+        -------
+            >>> import afed
+            >>> from simtk import unit
+            >>> model = afed.AlanineDipeptideModel()
+            >>> psi_driver, _ = model.getDriverParameters()
+            >>> psi_driver.getMass()
+            Quantity(value=1.6800000000000003e-21, unit=second**2*joule/(mole*radian**2))
+
+        """
+
+        return self._mass
 
 
 class DrivingForce(openmm.CustomCVForce):
@@ -215,6 +260,19 @@ class HarmonicDrivingForce(DrivingForce):
             forceConstant : unit.Quantity
                 The strength of the coupling harmonic force in units of energy per squared dimension
                 of the collective variable.
+
+        Example
+        -------
+            >>> import afed
+            >>> from simtk import unit
+            >>> model = afed.AlanineDipeptideModel()
+            >>> psi, _ = model.getCollectiveVariables()
+            >>> psi_driver, _ = model.getDriverParameters()
+            >>> K = 2.78E3*unit.kilocalories_per_mole/unit.radians**2
+            >>> force = afed.HarmonicDrivingForce()
+            >>> force.addPair(psi, psi_driver, K)
+            >>> print(force)
+            5815.76*min(abs(psi-psi_s),6.283185307179586-abs(psi-psi_s))^2
 
         """
 
