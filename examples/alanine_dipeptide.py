@@ -1,25 +1,23 @@
 import afed
 import argparse
-import openmmtools
 
 from simtk import openmm, unit
 from sys import stdout
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--platform', dest='platform', help='the computation platform', default='CUDA')
+parser.add_argument('--water', dest='water', help='the water model', default=None)
 args = parser.parse_args()
 
 timestep = 3*unit.femtoseconds
 temp = 300*unit.kelvin
 tau = 10*unit.femtosecond
-psi_atoms = [('N', 'ALA'), ('CA', 'ALA'), ('C', 'ALA'), ('N', 'NME')]
-phi_atoms = [('C', 'ACE'), ('N', 'ALA'), ('CA', 'ALA'), ('C', 'ALA')]
 
 platform = openmm.Platform.getPlatformByName(args.platform)
 properties = dict(Precision='mixed') if args.platform == 'CUDA' else dict()
 
-input = openmmtools.testsystems.AlanineDipeptideVacuum(constraints=None)
-system, topology, positions = input.system, input.topology, input.positions
+model = afed.AlanineDipeptideModel(water=args.water)
+system, topology, positions = model.getSystem(), model.getTopology(), model.getPositions()
 
 # Split forces into multiple time scales:
 respa_loops = [4, 6, 1]  # time steps = 0.125 fs, 0.5 fs, 3 fs
@@ -29,50 +27,21 @@ for force in system.getForces():
         force.setReciprocalSpaceForceGroup(2)
     elif isinstance(force, openmm.PeriodicTorsionForce):
         force.setForceGroup(1)
-
-# Remove center-of-mass motion (the last Force object in system):
-system.removeForce(system.getNumForces()-1)
-
-# Add driven collective variables (dihedral angles):
-atoms = [(a.name, a.residue.name) for a in topology.atoms()]
-psi = openmm.CustomTorsionForce('theta')
-psi.addTorsion(*[atoms.index(i) for i in psi_atoms], [])
-psi = afed.DrivenCollectiveVariable('psi', psi, unit.radians, period=360*unit.degrees)
-
-phi = openmm.CustomTorsionForce('theta')
-phi.addTorsion(*[atoms.index(i) for i in phi_atoms], [])
-phi = afed.DrivenCollectiveVariable('phi', phi, unit.radians, period=360*unit.degrees)
-
-# Add driver parameters [Ref: Chen et al., JCP 137 (2), art. 024102, 2012]:
-T_dihedrals = 1500*unit.kelvin
-mass_dihedrals = 168.0*unit.dalton*(unit.angstroms/unit.radian)**2
-K_dihedrals = 2.78E3*unit.kilocalories_per_mole/unit.radians**2
-velocity_scale = unit.sqrt(unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*T_dihedrals/mass_dihedrals)
-
-psi_driver = afed.DriverParameter('psi_s', unit.radians, psi.evaluate(positions), T_dihedrals,
-                                  velocity_scale, -180*unit.degrees, 180*unit.degrees, periodic=True)
-phi_driver = afed.DriverParameter('phi_s', unit.radians, phi.evaluate(positions), T_dihedrals,
-                                  velocity_scale, -180*unit.degrees, 180*unit.degrees, periodic=True)
-
-# Add driving force:
-dihedrals = afed.HarmonicDrivingForce()
-dihedrals.addPair(psi, psi_driver, K_dihedrals)
-dihedrals.addPair(phi, phi_driver, K_dihedrals)
-dihedrals.setForceGroup(0)  # parameter velocity integration at fastest time scale
-system.addForce(dihedrals)
+    # print(force.__class__.__name__,force.getForceGroup())
 
 # Define AFED integrator:
 integrator = afed.MassiveMiddleNHCIntegrator(
     temp,
     tau,
     timestep,
-    dihedrals,
+    # 0.25*unit.femtosecond,
+    model.getDrivingForce(),
     respaLoops=respa_loops,
-    parameterLoops=6,
+    # parameterLoops=6,
 )
 print(integrator)
 
-simulation = openmm.app.Simulation(topology, system, integrator)
+simulation = openmm.app.Simulation(topology, system, integrator, platform, properties)
 simulation.context.setPositions(positions)
 simulation.minimizeEnergy()
 simulation.context.setVelocitiesToTemperature(temp)

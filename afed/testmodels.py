@@ -13,6 +13,7 @@
 import afed
 import os
 
+from copy import deepcopy
 from simtk import openmm, unit
 from simtk.openmm import app
 
@@ -27,7 +28,7 @@ class TestModel:
             list(openmm.Vec3)
 
         """
-        return self._pdb.positions
+        return self._positions
 
     def getSystem(self):
         """
@@ -49,24 +50,45 @@ class TestModel:
             openmm.app.Topology
 
         """
-        return self._pdb.topology
+        return self._topology
 
 
 class AlanineDipeptideModel(TestModel):
     """
-    A system consisting of a single alanine-dipeptide molecule in a vacuum.
+    A system consisting of a single alanine-dipeptide molecule in a vacuum or solvated in explicit
+    water.
+
+    Keyword Args
+    ------------
+        forceField : str, default="amber14-all"
+            The force field to be used for the alanine dipeptide molecule.
+        water : str, default=None
+            The water model to be used if the alanine dipeptide is supposed to be solvated.
+            Available options are "spce", "tip3p", "tip4pew", and "tip5p".
+        boxLength : unit.Quantity, default=25*unit.angstroms
+            The size of the simulation box. This is only effective if water is not `None`.
 
     """
-    def __init__(self):
-        pdb = self._pdb = app.PDBFile(os.path.join('afed', 'data', 'alanine-dipeptide.pdb'))
-        forcefield = app.ForceField('amber10.xml')
-        self._system = forcefield.createSystem(
-            pdb.topology,
-            nonbondedMethod=app.NoCutoff,
+    def __init__(self, forceField='amber14-all', water=None, boxLength=25*unit.angstroms):
+        pdb = app.PDBFile(os.path.join(afed.__path__[0], 'data', 'alanine-dipeptide.pdb'))
+        if water is None:
+            force_field = app.ForceField(f'{forceField}.xml')
+            self._topology = pdb.topology
+            self._positions = pdb.positions
+        else:
+            force_field = app.ForceField(f'{forceField}.xml', f'{water}.xml')
+            modeller = app.Modeller(pdb.topology, pdb.positions)
+            modeller.addSolvent(force_field, model=water, boxSize=boxLength*openmm.Vec3(1, 1, 1))
+            self._topology = modeller.topology
+            self._positions = modeller.positions
+        self._system = force_field.createSystem(
+            self._topology,
+            nonbondedMethod=app.NoCutoff if water is None else app.PME,
             constraints=None,
+            rigidWater=False,
             removeCMMotion=False,
         )
-        atoms = [(a.name, a.residue.name) for a in pdb.topology.atoms()]
+        atoms = [(a.name, a.residue.name) for a in self._topology.atoms()]
         psi_atoms = [('N', 'ALA'), ('CA', 'ALA'), ('C', 'ALA'), ('N', 'NME')]
         self._psi_angle = openmm.CustomTorsionForce('theta')
         self._psi_angle.addTorsion(*[atoms.index(i) for i in psi_atoms], [])
@@ -86,6 +108,11 @@ class AlanineDipeptideModel(TestModel):
                                                 minval, maxval, periodic=True)
         self._phi_driver = afed.DriverParameter('phi_s', unit.radians, value, T, velocity_scale,
                                                 minval, maxval, periodic=True)
+        self._driving_force = afed.HarmonicDrivingForce()
+        K = 2.78E3*unit.kilocalories_per_mole/unit.radians**2
+        self._driving_force.addPair(self._psi, self._psi_driver, K)
+        self._driving_force.addPair(self._phi, self._phi_driver, K)
+        self._system.addForce(self._driving_force)
 
     def getDihedralAngles(self):
         """
@@ -99,17 +126,28 @@ class AlanineDipeptideModel(TestModel):
         """
         return self._psi_angle, self._phi_angle
 
-    def getCollectiveVariables(self):
+    def getCollectiveVariables(self, copy=False):
         """
         Gets driven collective variables concerning the Ramachandran dihedral angles.
 
+        .. warning::
+            The returned :class:`~afed.afed.DrivenCollectiveVariable` objects will be bound to an existing
+            :class:`~afed.afed.HarmonicDrivingForce`, unless the keyword ``copy`` is set to ``True``.
+
+        Keyword Args
+        ------------
+            copy : bool, default=False
+                Whether to return a copy of the driven collective variables instead of the
+                original objects.
 
         Returns
         -------
             psi, phi : DrivenCollectiveVariable
 
         """
-        return self._psi, self._phi
+        psi = deepcopy(self._psi) if copy else self._psi
+        phi = deepcopy(self._phi) if copy else self._phi
+        return psi, phi
 
     def getDriverParameters(self):
         """
@@ -121,3 +159,14 @@ class AlanineDipeptideModel(TestModel):
 
         """
         return self._psi_driver, self._phi_driver
+
+    def getDrivingForce(self):
+        """
+        Gets the (harmonic) driving force associated to the Ramachandran dihedral angles.
+
+        Returns
+        -------
+            HarmonicDrivingForce
+
+        """
+        return self._driving_force
