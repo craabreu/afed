@@ -97,7 +97,8 @@ class DrivenCollectiveVariable(object):
         if boxVectors is not None:
             system.setDefaultPeriodicBoxVectors(*boxVectors)
         system.addForce(copy.deepcopy(self._variable))
-        context = openmm.Context(system, openmm.CustomIntegrator(0))
+        platform = openmm.Platform.getPlatformByName('Reference')
+        context = openmm.Context(system, openmm.CustomIntegrator(0), platform)
         context.setPositions(positions)
         energy = context.getState(getEnergy=True).getPotentialEnergy()
         return energy.value_in_unit(unit.kilojoules_per_mole)*self._dimension

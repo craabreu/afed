@@ -98,7 +98,8 @@ class StateDataReporter(app.StateDataReporter):
         ...     1*unit.femtosecond,
         ...     model.getDrivingForce(),
         ... )
-        >>> simulation = openmm.app.Simulation(model.getTopology(), model.getSystem(), integrator)
+        >>> platform = openmm.Platform.getPlatformByName('Reference')
+        >>> simulation = openmm.app.Simulation(model.getTopology(), model.getSystem(), integrator, platform)
         >>> simulation.context.setPositions(model.getPositions())
         >>> reporter = afed.StateDataReporter(
         ...     stdout,
