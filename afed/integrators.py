@@ -123,19 +123,19 @@ class CustomIntegrator(openmm.CustomIntegrator):
                     corrected_expression += f'; ymin = {ymin}'
                     corrected_expression += f'; L = {ymax - ymin}'
                     corrected_expression += f'; y = {translate(expression, name)}'
-                    index = self.addComputeGlobal(name, corrected_expression)
+                    self.addComputeGlobal(name, corrected_expression)
                 else:
                     # Apply ellastic collision with hard wall:
-                    index = self.addComputeGlobal(name, translate(expression, name))
+                    self.addComputeGlobal(name, translate(expression, name))
                     for bound, op in zip([parameter._lower_bound, parameter._upper_bound], ['<', '>']):
                         if bound is not None:
                             limit = bound/parameter._dimension
                             self.beginIfBlock(f'{name} {op} {limit}')
                             self.addComputeGlobal(name, f'{2*limit}-{name}')
-                            index = self.addComputeGlobal(f'v_{name}', f'-v_{name}')
+                            self.addComputeGlobal(f'v_{name}', f'-v_{name}')
                             self.endBlock()
             elif variable in self._per_parameter_variables:
-                index = self.addComputeGlobal(f'{variable}_{name}', translate(expression, name))
+                self.addComputeGlobal(f'{variable}_{name}', translate(expression, name))
             else:
                 raise Exception('invalid per-parameter variable')
 

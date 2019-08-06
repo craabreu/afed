@@ -108,11 +108,10 @@ class AlanineDipeptideModel(TestModel):
                                                 minval, maxval, periodic=True)
         self._phi_driver = afed.DriverParameter('phi_s', unit.radians, value, T, velocity_scale,
                                                 minval, maxval, periodic=True)
-        # self._driving_force = afed.HarmonicDrivingForce()
-        self._driving_force = afed.DrivingForce('0')
-        # K = 2.78E3*unit.kilocalories_per_mole/unit.radians**2
-        # self._driving_force.addPair(self._psi, self._psi_driver, K)
-        # self._driving_force.addPair(self._phi, self._phi_driver, K)
+        self._driving_force = afed.HarmonicDrivingForce()
+        K = 2.78E3*unit.kilocalories_per_mole/unit.radians**2
+        self._driving_force.addPair(self._psi, self._psi_driver, K)
+        self._driving_force.addPair(self._phi, self._phi_driver, K)
         self._system.addForce(self._driving_force)
 
     def getDihedralAngles(self):
