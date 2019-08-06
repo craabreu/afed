@@ -55,21 +55,37 @@ class TestModel:
 
 class AlanineDipeptideModel(TestModel):
     """
-    A system consisting of a single alanine-dipeptide molecule in a vacuum.
+    A system consisting of a single alanine-dipeptide molecule in a vacuum or solvated in explicit
+    water.
+
+    Keyword Args
+    ------------
+        water : str, default=None
+            The water model to be used if the alanine dipeptide is to be solvated. Available models
+            are "spce", "tip3p", "tip3pfb", "tip4pew", "tip4pfb", and "tip5p".
+        boxLength : unit.Quantity, default=25*unit.angstroms
+            The size of the simulation box. This is only effective if water is not `None`.
 
     """
-    def __init__(self):
-        pdb = app.PDBFile(os.path.join('afed', 'data', 'alanine-dipeptide.pdb'))
-        self._topology = pdb.topology
-        self._positions = pdb.positions
-        forcefield = app.ForceField('amber10.xml')
+    def __init__(self, water=None, boxLength=25*unit.angstroms):
+        pdb = app.PDBFile(os.path.join(afed.__path__[0], 'data', 'alanine-dipeptide.pdb'))
+        if water is None:
+            forcefield = app.ForceField('amber14-all.xml')
+            self._topology = pdb.topology
+            self._positions = pdb.positions
+        else:
+            forcefield = app.ForceField('amber14-all.xml', f'{water}.xml')
+            modeller = app.Modeller(pdb.topology, pdb.positions)
+            modeller.addSolvent(forcefield, model=water, boxSize=boxLength*openmm.Vec3(1, 1, 1))
+            self._topology = modeller.topology
+            self._positions = modeller.positions
         self._system = forcefield.createSystem(
-            pdb.topology,
-            nonbondedMethod=app.NoCutoff,
+            self._topology,
+            nonbondedMethod=app.NoCutoff if water is None else app.PME,
             constraints=None,
             removeCMMotion=False,
         )
-        atoms = [(a.name, a.residue.name) for a in pdb.topology.atoms()]
+        atoms = [(a.name, a.residue.name) for a in self._topology.atoms()]
         psi_atoms = [('N', 'ALA'), ('CA', 'ALA'), ('C', 'ALA'), ('N', 'NME')]
         self._psi_angle = openmm.CustomTorsionForce('theta')
         self._psi_angle.addTorsion(*[atoms.index(i) for i in psi_atoms], [])
