@@ -203,11 +203,13 @@ class MassiveMiddleSchemeIntegrator(CustomIntegrator):
             self.addComputeGlobal(f'irespa{scale}', '0')
             self.beginWhileBlock(f'irespa{scale} < {n}')
         if scale > 0:
-            self._kick(fraction/(2*n), self.addComputePerParameter, scale)
+            if scale == self._driving_force.getForceGroup():
+                self._kick(fraction/(2*n), self.addComputePerParameter, scale)
             self._kick(fraction/(2*n), self.addComputePerDof, scale)
             self._integrate_particles_respa(fraction/n, scale-1)
             self._kick(fraction/(2*n), self.addComputePerDof, scale)
-            self._kick(fraction/(2*n), self.addComputePerParameter, scale)
+            if scale == self._driving_force.getForceGroup():
+                self._kick(fraction/(2*n), self.addComputePerParameter, scale)
         else:
             self._inner_loop(fraction/n, group=0)
         if n > 1:
@@ -215,13 +217,15 @@ class MassiveMiddleSchemeIntegrator(CustomIntegrator):
             self.endBlock()
 
     def _inner_loop(self, fraction, group):
-        self._kick(fraction/2, self.addComputePerParameter, group)
+        if group == '' or group == self._driving_force.getForceGroup():
+            self._kick(fraction/2, self.addComputePerParameter, group)
         self._kick(fraction/2, self.addComputePerDof, group)
         self._move(fraction/2, self.addComputePerDof)
         self._bath(fraction, self.addComputePerDof)
         self._move(fraction/2, self.addComputePerDof)
         self._kick(fraction/2, self.addComputePerDof, group)
-        self._kick(fraction/2, self.addComputePerParameter, group)
+        if group == '' or group == self._driving_force.getForceGroup():
+            self._kick(fraction/2, self.addComputePerParameter, group)
 
     def _move(self, fraction, addCompute):
         addCompute('x', f'x + {fraction}*dt*v')
