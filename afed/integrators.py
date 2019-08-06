@@ -138,7 +138,6 @@ class CustomIntegrator(openmm.CustomIntegrator):
                 index = self.addComputeGlobal(f'{variable}_{name}', translate(expression, name))
             else:
                 raise Exception('invalid per-parameter variable')
-        return index
 
 
 class MassiveMiddleSchemeIntegrator(CustomIntegrator):

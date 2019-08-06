@@ -60,29 +60,32 @@ class AlanineDipeptideModel(TestModel):
 
     Keyword Args
     ------------
+        forceField : str, default="amber14-all"
+            The force field to be used for the alanine dipeptide molecule.
         water : str, default=None
-            The water model to be used if the alanine dipeptide is to be solvated. Available models
-            are "spce", "tip3p", "tip3pfb", "tip4pew", "tip4pfb", and "tip5p".
+            The water model to be used if the alanine dipeptide is supposed to be solvated.
+            Available options are "spce", "tip3p", "tip4pew", and "tip5p".
         boxLength : unit.Quantity, default=25*unit.angstroms
             The size of the simulation box. This is only effective if water is not `None`.
 
     """
-    def __init__(self, water=None, boxLength=25*unit.angstroms):
+    def __init__(self, forceField='amber14-all', water=None, boxLength=25*unit.angstroms):
         pdb = app.PDBFile(os.path.join(afed.__path__[0], 'data', 'alanine-dipeptide.pdb'))
         if water is None:
-            forcefield = app.ForceField('amber14-all.xml')
+            force_field = app.ForceField(f'{forceField}.xml')
             self._topology = pdb.topology
             self._positions = pdb.positions
         else:
-            forcefield = app.ForceField('amber14-all.xml', f'{water}.xml')
+            force_field = app.ForceField(f'{forceField}.xml', f'{water}.xml')
             modeller = app.Modeller(pdb.topology, pdb.positions)
-            modeller.addSolvent(forcefield, model=water, boxSize=boxLength*openmm.Vec3(1, 1, 1))
+            modeller.addSolvent(force_field, model=water, boxSize=boxLength*openmm.Vec3(1, 1, 1))
             self._topology = modeller.topology
             self._positions = modeller.positions
-        self._system = forcefield.createSystem(
+        self._system = force_field.createSystem(
             self._topology,
             nonbondedMethod=app.NoCutoff if water is None else app.PME,
             constraints=None,
+            rigidWater=False,
             removeCMMotion=False,
         )
         atoms = [(a.name, a.residue.name) for a in self._topology.atoms()]
@@ -105,10 +108,11 @@ class AlanineDipeptideModel(TestModel):
                                                 minval, maxval, periodic=True)
         self._phi_driver = afed.DriverParameter('phi_s', unit.radians, value, T, velocity_scale,
                                                 minval, maxval, periodic=True)
-        self._driving_force = afed.HarmonicDrivingForce()
-        K = 2.78E3*unit.kilocalories_per_mole/unit.radians**2
-        self._driving_force.addPair(self._psi, self._psi_driver, K)
-        self._driving_force.addPair(self._phi, self._phi_driver, K)
+        # self._driving_force = afed.HarmonicDrivingForce()
+        self._driving_force = afed.DrivingForce('0')
+        # K = 2.78E3*unit.kilocalories_per_mole/unit.radians**2
+        # self._driving_force.addPair(self._psi, self._psi_driver, K)
+        # self._driving_force.addPair(self._phi, self._phi_driver, K)
         self._system.addForce(self._driving_force)
 
     def getDihedralAngles(self):
