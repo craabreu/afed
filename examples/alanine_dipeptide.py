@@ -70,7 +70,7 @@ integrator = afed.MassiveMiddleNHCIntegrator(
 )
 print(integrator)
 
-simulation = openmm.app.Simulation(topology, system, integrator)
+simulation = openmm.app.Simulation(topology, system, integrator, platform, properties)
 simulation.context.setPositions(positions)
 simulation.minimizeEnergy()
 simulation.context.setVelocitiesToTemperature(temp)
