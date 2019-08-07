@@ -10,7 +10,7 @@ parser.add_argument('--platform', dest='platform', help='the computation platfor
 parser.add_argument('--water', dest='water', help='the water model', choices=waters, default=None)
 args = parser.parse_args()
 
-timestep = 3*unit.femtoseconds
+timestep = 6*unit.femtoseconds
 temp = 300*unit.kelvin
 tau = 10*unit.femtosecond
 psi_atoms = [('N', 'ALA'), ('CA', 'ALA'), ('C', 'ALA'), ('N', 'NME')]
