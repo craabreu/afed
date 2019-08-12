@@ -1,6 +1,7 @@
 Adiabatic Free Energy Dynamics with OpenMM
 ==========================================
 [//]: # (Badges)
+[![License](https://img.shields.io/github/license/mashape/apistatus.svg)]()
 [![Travis Build Status](https://travis-ci.org/craabreu/afed.png)](https://travis-ci.org/craabreu/afed)
 [![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/8p0jxlr3ly3bta06/branch/master?svg=true)](https://ci.appveyor.com/project/craabreu/afed/branch/master)
 [![codecov](https://codecov.io/gh/craabreu/afed/branch/master/graph/badge.svg)](https://codecov.io/gh/craabreu/afed/branch/master)
