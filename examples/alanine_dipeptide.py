@@ -19,7 +19,7 @@ phi_atoms = [('C', 'ACE'), ('N', 'ALA'), ('CA', 'ALA'), ('C', 'ALA')]
 platform = openmm.Platform.getPlatformByName(args.platform)
 properties = dict(Precision='mixed') if args.platform == 'CUDA' else dict()
 
-model = afed.AlanineDipeptideModel(water=args.water)
+model = afed.AlanineDipeptideModel(water=args.water, bareSystem=True)
 system, topology, positions = model.getSystem(), model.getTopology(), model.getPositions()
 
 # Split forces into multiple time scales:

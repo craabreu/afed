@@ -67,9 +67,12 @@ class AlanineDipeptideModel(TestModel):
             Available options are "spce", "tip3p", "tip4pew", and "tip5p".
         boxLength : unit.Quantity, default=25*unit.angstroms
             The size of the simulation box. This is only effective if water is not `None`.
+        bareSystem : bool, default=False
+            Whether the system must be created without AFED-related objects.
 
     """
-    def __init__(self, forceField='amber14-all', water=None, boxLength=25*unit.angstroms):
+    def __init__(self, forceField='amber14-all', water=None, boxLength=25*unit.angstroms,
+                 bareSystem=False):
         pdb = app.PDBFile(os.path.join(afed.__path__[0], 'data', 'alanine-dipeptide.pdb'))
         if water is None:
             force_field = app.ForceField(f'{forceField}.xml')
@@ -88,6 +91,8 @@ class AlanineDipeptideModel(TestModel):
             rigidWater=False,
             removeCMMotion=False,
         )
+        if bareSystem:
+            return
         atoms = [(a.name, a.residue.name) for a in self._topology.atoms()]
         psi_atoms = [('N', 'ALA'), ('CA', 'ALA'), ('C', 'ALA'), ('N', 'NME')]
         self._psi_angle = openmm.CustomTorsionForce('theta')

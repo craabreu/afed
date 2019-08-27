@@ -111,7 +111,7 @@ class StateDataReporter(app.StateDataReporter):
         ...     parameterTemperatures=True,
         ... )
         >>> reporter.report(simulation, simulation.context.getState())
-        #"Step","psi (radian)","psi (radian)","psi_s (radian)","phi_s (radian)","T_psi_s (K)","T_phi_s (K)"
+        #"Step","psi (radian)","phi (radian)","psi_s (radian)","phi_s (radian)","T_psi_s (K)","T_phi_s (K)"
         0,3.141592653589793,3.141592653589793,3.141592653589793,3.141592653589793,0.0,0.0
 
     """
