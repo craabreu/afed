@@ -92,19 +92,11 @@ class StateDataReporter(app.StateDataReporter):
         >>> from sys import stdout
         >>> from simtk import openmm, unit
         >>> model = afed.AlanineDipeptideModel()
-        >>> integrator = afed.MassiveMiddleNHCIntegrator(
-        ...     300*unit.kelvin,
-        ...     100*unit.femtoseconds,
-        ...     1*unit.femtosecond,
-        ...     model.getDrivingForce(),
-        ... )
-        >>> platform = openmm.Platform.getPlatformByName('Reference')
-        >>> simulation = openmm.app.Simulation(model.getTopology(), model.getSystem(), integrator, platform)
-        >>> simulation.context.setPositions(model.getPositions())
+        >>> simulation = model.createDefaultSimulation()
         >>> reporter = afed.StateDataReporter(
         ...     stdout,
         ...     1,
-        ...     integrator,
+        ...     model.createDefaultIntegrator(),
         ...     step=True,
         ...     collectiveVariables=True,
         ...     driverParameters=True,

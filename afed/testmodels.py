@@ -19,6 +19,45 @@ from simtk.openmm import app
 
 
 class TestModel:
+    def createDefaultIntegrator(self):
+        """
+        Creates an integrator object corresponding to a massive Nosé-Hoover chain algorithm.
+
+        Returns
+        -------
+            MassiveMiddleNHCIntegrator
+
+        """
+        return afed.MassiveMiddleNHCIntegrator(
+            300*unit.kelvin,
+            100*unit.femtoseconds,
+            1*unit.femtosecond,
+            self.getDrivingForce(),
+        )
+
+    def createDefaultSimulation(self, platform='Reference', properties={}):
+        platform = openmm.Platform.getPlatformByName(platform)
+        simulation = openmm.app.Simulation(
+            self.getTopology(),
+            self.getSystem(),
+            self.createDefaultIntegrator(),
+            platform,
+            properties,
+        )
+        simulation.context.setPositions(self.getPositions())
+        return simulation
+
+    def getDrivingForce(self):
+        """
+        Gets the driving force associated to the model system.
+
+        Returns
+        -------
+            DrivingForce
+
+        """
+        return self._driving_force
+
     def getPositions(self):
         """
         Gets the positions of all atoms in the model system.
@@ -164,14 +203,3 @@ class AlanineDipeptideModel(TestModel):
 
         """
         return self._psi_driver, self._phi_driver
-
-    def getDrivingForce(self):
-        """
-        Gets the (harmonic) driving force associated to the Ramachandran dihedral angles.
-
-        Returns
-        -------
-            HarmonicDrivingForce
-
-        """
-        return self._driving_force
