@@ -19,17 +19,15 @@ phi_atoms = [('C', 'ACE'), ('N', 'ALA'), ('CA', 'ALA'), ('C', 'ALA')]
 platform = openmm.Platform.getPlatformByName(args.platform)
 properties = dict(Precision='mixed') if args.platform == 'CUDA' else dict()
 
-model = afed.AlanineDipeptideModel(water=args.water, bareSystem=True)
+model = afed.AlanineDipeptideModel(forceField='amber96', water=args.water, bareSystem=True)
 system, topology, positions = model.getSystem(), model.getTopology(), model.getPositions()
 
 # Split forces into multiple time scales:
-respa_loops = [4, 6, 1]  # time steps = 0.125 fs, 0.5 fs, 3 fs
+respa_loops = [12, 1]  # time steps = 0.25 fs, 3 fs
 for force in system.getForces():
     if isinstance(force, openmm.NonbondedForce):
-        force.setForceGroup(2)
-        force.setReciprocalSpaceForceGroup(2)
-    elif isinstance(force, openmm.PeriodicTorsionForce):
         force.setForceGroup(1)
+        force.setReciprocalSpaceForceGroup(1)
 
 # Add driven collective variables (dihedral angles):
 atoms = [(a.name, a.residue.name) for a in topology.atoms()]
@@ -89,7 +87,7 @@ data_reporter = afed.StateDataReporter(
 
 pdb_reporter = openmm.app.PDBReporter(
     'alanine_dipeptide.pdb',
-    100,
+    1000,
 )
 
 simulation.reporters += [data_reporter, pdb_reporter]
