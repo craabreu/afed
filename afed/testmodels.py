@@ -21,21 +21,41 @@ from simtk.openmm import app
 class TestModel:
     def createDefaultIntegrator(self):
         """
-        Creates an integrator object corresponding to a massive Nosé-Hoover chain algorithm.
+        Creates an integrator object corresponding to a massive Nosé-Hoover chain algorithm with
+        :math:`T = 300~\\mathrm{K}`, :math:`\\tau = 100~\\mathrm{fs}`, and
+        :math:`\\Delta t = 1~\\mathrm{fs}`.
 
         Returns
         -------
             MassiveMiddleNHCIntegrator
 
         """
-        return afed.MassiveMiddleNHCIntegrator(
+        integrator = afed.MassiveMiddleNHCIntegrator(
             300*unit.kelvin,
             100*unit.femtoseconds,
             1*unit.femtosecond,
             self.getDrivingForce(),
         )
+        return integrator
 
     def createDefaultSimulation(self, platform='Reference', properties={}):
+        """
+        Creates a simulation object corresponding to a massive Nosé-Hoover chain algorithm with
+        :math:`T = 300~\\mathrm{K}`, :math:`\\tau = 100~\\mathrm{fs}`, and
+        :math:`\\Delta t = 1~\\mathrm{fs}`.
+
+        Keyword Args
+        ------------
+            platform : str, default='Reference'
+                The name of the OpenMM platform to be used for the computations.
+            properties : dict, default={}
+                The properties of the OpenMM platform to be used for the computations.
+
+        Returns
+        -------
+            openmm.Simulation
+
+        """
         platform = openmm.Platform.getPlatformByName(platform)
         simulation = openmm.app.Simulation(
             self.getTopology(),

@@ -15,6 +15,8 @@ import sys
 from simtk import unit
 from simtk.openmm import app
 
+from afed import CustomIntegrator
+
 
 class MultipleFiles:
     """
@@ -71,8 +73,6 @@ class StateDataReporter(app.StateDataReporter):
             :class:`~afed.output.MultipleFiles` object.
         reportInterval : int
             The interval (in time steps) at which to report state data.
-        afedIntegrator : afed.CustomIntegrator
-            An object of any class defined in :mod:`afed.integrators`.
 
     Keyword Args
     ------------
@@ -96,7 +96,6 @@ class StateDataReporter(app.StateDataReporter):
         >>> reporter = afed.StateDataReporter(
         ...     stdout,
         ...     1,
-        ...     model.createDefaultIntegrator(),
         ...     step=True,
         ...     collectiveVariables=True,
         ...     driverParameters=True,
@@ -108,8 +107,7 @@ class StateDataReporter(app.StateDataReporter):
 
     """
 
-    def __init__(self, file, reportInterval, afedIntegrator, **kwargs):
-        self._afed_integrator = afedIntegrator
+    def __init__(self, file, reportInterval, **kwargs):
         self._collective_variables = kwargs.pop('collectiveVariables', False)
         self._driver_parameters = kwargs.pop('driverParameters', False)
         self._parameter_temperatures = kwargs.pop('parameterTemperatures', False)
@@ -155,3 +153,9 @@ class StateDataReporter(app.StateDataReporter):
                     v = self._afed_integrator.getGlobalVariableByName(f'v_{parameter._name}')
                     self._add_item(values, m*v**2/self._kB)
         return values
+
+    def _initializeConstants(self, simulation):
+        super()._initializeConstants(simulation)
+        self._afed_integrator = simulation.integrator
+        if not isinstance(self._afed_integrator, CustomIntegrator):
+            raise Exception('Simulation integrator is not AFED-compatible')

@@ -43,8 +43,8 @@ phi = afed.DrivenCollectiveVariable('phi', phi, unit.radians, period=360*unit.de
 
 # Add driver parameters [Ref: Chen et al., JCP 137 (2), art. 024102, 2012]:
 T_dihedrals = 1500*unit.kelvin
-mass_dihedrals = 168.0*unit.dalton*(unit.angstroms/unit.radian)**2
-K_dihedrals = 2.78E3*unit.kilocalories_per_mole/unit.radians**2
+mass_dihedrals = 168*unit.dalton*(unit.angstroms/unit.radian)**2
+K_dihedrals = 2780*unit.kilocalories_per_mole/unit.radians**2
 velocity_scale = unit.sqrt(unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*T_dihedrals/mass_dihedrals)
 
 psi_driver = afed.DriverParameter('psi_s', unit.radians, psi.evaluate(positions), T_dihedrals,
@@ -78,7 +78,6 @@ simulation.context.setVelocitiesToTemperature(temp)
 data_reporter = afed.StateDataReporter(
     afed.MultipleFiles(stdout, 'alanine_dipeptide.csv'),
     10,
-    afedIntegrator=integrator,
     step=True,
     potentialEnergy=True,
     temperature=True,
