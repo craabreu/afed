@@ -97,7 +97,7 @@ class AlanineDipeptideModel(TestModel):
         self._phi_angle.addTorsion(*[atoms.index(i) for i in phi_atoms], [])
         period = 360*unit.degrees
         self._psi = afed.DrivenCollectiveVariable('psi', self._psi_angle, unit.radians, period)
-        self._phi = afed.DrivenCollectiveVariable('psi', self._phi_angle, unit.radians, period)
+        self._phi = afed.DrivenCollectiveVariable('phi', self._phi_angle, unit.radians, period)
         value = 180*unit.degrees
         minval = -value
         maxval = value
