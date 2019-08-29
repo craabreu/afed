@@ -15,6 +15,8 @@
 
 import re
 
+import numpy as np
+
 from simtk import openmm, unit
 
 
@@ -172,6 +174,19 @@ class CustomIntegrator(openmm.CustomIntegrator):
                 self.addComputeGlobal(f'{variable}_{name}', translate(expression, name))
             else:
                 raise Exception('invalid per-parameter variable')
+
+    def getPerParameterKineticEnergy(self):
+        """
+        Returns the kinetic energy of each driver parameter (in kJ/mole).
+
+        """
+
+        KE = []
+        for parameter in self._driving_force._driver_parameters:
+            m = self.getGlobalVariableByName(f'm_{parameter._name}')
+            v = self.getGlobalVariableByName(f'v_{parameter._name}')
+            KE.append(0.5*m*v*v)
+        return np.array(KE)*unit.kilojoules_per_mole
 
 
 class MassiveMiddleSchemeIntegrator(CustomIntegrator):
@@ -354,3 +369,28 @@ class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
         addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
         addCompute('v1', f'v1*exp(-{fraction/2}*dt*v2)')
         addCompute('v2', f'v2 + {fraction/2}*dt*(Q1*v1^2 - kT)/Q2')
+
+    def getThermostatEnergy(self):
+        """
+        Returns the total energy of all thermostats (in kJ/mole). If ``thermoCoordinates=False``,
+        then only the kinetic part is computed.
+
+        """
+        energy = 0.0
+        for i in range(2):
+            Q = self.getGlobalVariableByName(f'Q{i+1}')
+            velocities = self.getPerDofVariableByName(f'v{i+1}')
+            energy += 0.5*Q*sum(v.x**2 + v.y**2 + v.z**2 for v in velocities)
+            if self._thermoCoordinates:
+                kT = self.getGlobalVariableByName('kT')
+                coordinates = self.getPerDofVariableByName(f'eta{i+1}')
+                energy += kT*sum(eta.x + eta.y + eta.z for eta in coordinates)
+            for parameter in self._driving_force._driver_parameters:
+                Q = self.getGlobalVariableByName(f'Q{i+1}_{parameter._name}')
+                v = self.getGlobalVariableByName(f'v{i+1}_{parameter._name}')
+                energy += 0.5*Q*v**2
+                if self._thermoCoordinates:
+                    kT = self.getGlobalVariableByName(f'kT_{parameter._name}')
+                    eta = self.getGlobalVariableByName(f'eta{i+1}_{parameter._name}')
+                    energy += kT*eta
+        return energy*unit.kilojoules_per_mole
