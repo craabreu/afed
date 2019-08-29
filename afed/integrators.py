@@ -20,14 +20,19 @@ from simtk import openmm, unit
 
 class CustomIntegrator(openmm.CustomIntegrator):
     """
-    An extension of OpenMM's CustomIntegrator_ class which facilitates the specification of
-    both variables and computation steps in a per-driver-parameter fashion. These computations
-    are defined in the same manner as per-dof computations in the original class.
+    An extension of OpenMM's CustomIntegrator_ class. This extension facilitates the specification
+    of variables and computation steps in a per-driver-parameter fashion. These computations are
+    defined in the same manner as per-dof computations in the original class.
+
+    .. note::
+        For every driver parameter in `drivingForce`, per-driver-parameters `v` (velocity), `m`
+        (mass), and `kT` (Boltzmann constant times temperature) are automatically created, as well
+        as read-only force variables `f`, `f0`, `f1`, and so on (see CustomIntegrator_).
 
     Parameters
     ----------
         stepSize : unit.Quantity
-            The step size with which to integrate the system.
+            The step size with which to integrate the equations of motion.
         drivingForce : :class:`~afed.afed.DrivingForce`
             The AFED driving force.
 
@@ -147,14 +152,17 @@ class MassiveMiddleSchemeIntegrator(CustomIntegrator):
 
     1. Integration of particle-related degrees of freedom is done by using a middle-type scheme
     :cite:`Zhang_2017` (i.e. kick-move-bath-move-kick), possibly involving multiple time stepping
-    (RESPA) :cite:`Tuckerman_1992`, and the system does not have any holonomic constraints.
+    (RESPA) :cite:`Tuckerman_1992`.
 
-    2. Integration of driver parameters and their attached thermostats is done with a middle-type
+    2. The system does not contain any holonomic constraints.
+
+    3. Integration of driver parameters and their attached thermostats is done with a middle-type
     scheme as well, and is detached from the integration of all other dynamic variables, including
     the driver-parameter velocities.
 
-    3. Integration of driver-parameter velocities is always done along with the integration of
-    particle velocities, with possible splitting into multiple time scales.
+    4. Integration of driver-parameter velocities is always done along with the integration of
+    particle velocities, with possible splitting into multiple substeps by means of keyword argument
+    `parameterLoops` (see below).
 
     Activation of multiple time scale integration (RESPA) is done by passing a list of integers
     through the keyword argument ``respaLoops`` (see below). The size of this list determines the
@@ -177,7 +185,7 @@ class MassiveMiddleSchemeIntegrator(CustomIntegrator):
             A list of N integers, where ``respaLoops[k]`` determines how many iterations at time
             scale `k` are internally executed for every iteration at time scale `k+1`. If this is
             ``None``, then integration will take place at a single time scale.
-        parameterLoops : int, default = 1
+        parameterLoops : int, default=1
             The number of loops with which to subdivide the integration of driver parameters and
             their attached thermostats.
 
@@ -257,10 +265,10 @@ class MassiveMiddleSchemeIntegrator(CustomIntegrator):
 
 class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
     """
-    An AFED integrator based on the massive Nosé-Hoover Chain thermostat :cite:`Martyna_1992`. This
-    means that an independent thermostat chain is attached to each degree of freedom, including the
-    AFED driver parameters. In this implementation, each chain is composed of two thermostats in
-    series.
+    An AFED integrator based on a massive version of the Nosé-Hoover Chain thermostat
+    :cite:`Martyna_1992`. This means that an independent thermostat chain is attached to each degree
+    of freedom, including the AFED driver parameters. In this implementation, each chain is composed
+    of two thermostats in series.
 
     All other properties of this integrator are inherited from :class:`MassiveMiddleSchemeIntegrator`.
 
@@ -279,18 +287,26 @@ class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
     ------------
         respaLoops : list(int), default=None
             See :class:`MassiveMiddleSchemeIntegrator`.
-        parameterLoops : int, default = 1
+        parameterLoops : int, default=1
             See :class:`MassiveMiddleSchemeIntegrator`.
+        thermoCoordinates : bool, default=False
+            Whether to integrate thermostat coordinates. This is only necessary if one wishes to
+            compute the thermostat-related part of the non-Hamiltonian conserved energy.
+
 
     """
 
     def __init__(self, temperature, timeScale, stepSize, drivingForce, **kwargs):
+        self._thermoCoordinates = kwargs.pop('thermoCoordinates', False)
         super().__init__(temperature, stepSize, drivingForce, **kwargs)
         kT = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*temperature
         for i in range(2):
             self.addGlobalVariable(f'Q{i+1}', kT*timeScale**2)
             self.addPerDofVariable(f'v{i+1}', 0)
             self.addPerParameterVariable(f'v{i+1}', 0)
+            if self._thermoCoordinates:
+                self.addPerDofVariable(f'eta{i+1}', 0)
+                self.addPerParameterVariable(f'eta{i+1}', 0)
 
         self.addIntegrateParticles(0.5)
         self.addIntegrateParameters(1)
@@ -301,6 +317,9 @@ class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
         addCompute('v1', f'v1*exp(-{fraction/2}*dt*v2)')
         addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
         addCompute('v', f'v*exp(-{fraction}*dt*v1)')
+        if self._thermoCoordinates:
+            addCompute('eta1', f'eta1 + {fraction}*dt*v1')
+            addCompute('eta2', f'eta2 + {fraction}*dt*v2')
         addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
         addCompute('v1', f'v1*exp(-{fraction/2}*dt*v2)')
         addCompute('v2', f'v2 + {fraction/2}*dt*(Q1*v1^2 - kT)/Q2')

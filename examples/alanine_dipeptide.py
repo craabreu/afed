@@ -65,6 +65,7 @@ integrator = afed.MassiveMiddleNHCIntegrator(
     dihedrals,
     respaLoops=respa_loops,
     parameterLoops=6,
+    thermoCoordinates=True,
 )
 print(integrator)
 
