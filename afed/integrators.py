@@ -362,14 +362,12 @@ class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
 
     def _bath(self, fraction, addCompute):
         addCompute('v2', f'v2 + {fraction/2}*dt*(Q1*v1^2 - kT)/Q2')
-        addCompute('v1', f'v1*exp(-{fraction/2}*dt*v2)')
-        addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
+        addCompute('v1', f'v1*exp(-Dt*v2) + Dt*(m*v^2 - kT)/Q1; Dt={fraction/2}*dt')
         addCompute('v', f'v*exp(-{fraction}*dt*v1)')
         if self._has_conserved_energy:
             addCompute('eta1', f'eta1 + {fraction}*dt*v1')
             addCompute('eta2', f'eta2 + {fraction}*dt*v2')
-        addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
-        addCompute('v1', f'v1*exp(-{fraction/2}*dt*v2)')
+        addCompute('v1', f'(v1 + Dt*(m*v^2 - kT)/Q1)*exp(-Dt*v2); Dt={fraction/2}*dt')
         addCompute('v2', f'v2 + {fraction/2}*dt*(Q1*v1^2 - kT)/Q2')
 
     def getThermostatEnergy(self):
