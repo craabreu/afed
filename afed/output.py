@@ -85,6 +85,8 @@ class StateDataReporter(app.StateDataReporter):
         parameterTemperatures : bool, defaul=False
             Whether to output the "instantaneous temperatures" of the driver parameters included
             in the integrator's :class:`~afed.afed.DrivingForce`.
+        conservedEnergy : bool, default=False
+            Whether to output a conserved energy (if any).
 
     Example
     -------
@@ -111,10 +113,11 @@ class StateDataReporter(app.StateDataReporter):
         self._collective_variables = kwargs.pop('collectiveVariables', False)
         self._driver_parameters = kwargs.pop('driverParameters', False)
         self._parameter_temperatures = kwargs.pop('parameterTemperatures', False)
+        self._conserved_energy = kwargs.pop('conservedEnergy', False)
         super().__init__(file, reportInterval, **kwargs)
         self._backSteps = -sum([self._speed, self._elapsedTime, self._remainingTime])
-        kB = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA
-        self._kB = kB.value_in_unit(unit.kilojoules_per_mole/unit.kelvin)
+        self._kB = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA
+        self._needEnergy = self._needEnergy or self._conserved_energy
 
     def _add_item(self, lst, item):
         if self._backSteps == 0:
@@ -135,6 +138,8 @@ class StateDataReporter(app.StateDataReporter):
             if self._parameter_temperatures:
                 for parameter in driving_force._driver_parameters:
                     self._add_item(headers, f'T_{parameter._name} (K)')
+            if self._conserved_energy:
+                self._add_item(headers, f'Conserved Energy (kJ/mole)')
         return headers
 
     def _constructReportValues(self, simulation, state):
@@ -148,10 +153,13 @@ class StateDataReporter(app.StateDataReporter):
                 for parameter in driving_force._driver_parameters:
                     self._add_item(values, simulation.context.getParameter(parameter._name))
             if self._parameter_temperatures:
-                for parameter in driving_force._driver_parameters:
-                    m = self._afed_integrator.getGlobalVariableByName(f'm_{parameter._name}')
-                    v = self._afed_integrator.getGlobalVariableByName(f'v_{parameter._name}')
-                    self._add_item(values, m*v**2/self._kB)
+                for KE in self._afed_integrator.getPerParameterKineticEnergy():
+                    self._add_item(values, (KE/self._kB).value_in_unit(unit.kelvin))
+            if self._conserved_energy:
+                nhc = self._afed_integrator
+                energy = state.getPotentialEnergy() + state.getKineticEnergy()
+                energy += sum(nhc.getPerParameterKineticEnergy(), nhc.getThermostatEnergy())
+                self._add_item(values, energy.value_in_unit(unit.kilojoules_per_mole))
         return values
 
     def _initializeConstants(self, simulation):
@@ -159,3 +167,5 @@ class StateDataReporter(app.StateDataReporter):
         self._afed_integrator = simulation.integrator
         if not isinstance(self._afed_integrator, CustomIntegrator):
             raise Exception('Simulation integrator is not AFED-compatible')
+        if self._conserved_energy and not self._afed_integrator._has_conserved_energy:
+            raise Exception('Simulation integrator does not have a conserved energy')

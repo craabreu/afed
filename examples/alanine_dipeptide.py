@@ -65,7 +65,7 @@ integrator = afed.MassiveMiddleNHCIntegrator(
     dihedrals,
     respaLoops=respa_loops,
     parameterLoops=6,
-    thermoCoordinates=True,
+    conservedEnergy=True,
 )
 print(integrator)
 
@@ -83,6 +83,7 @@ data_reporter = afed.StateDataReporter(
     collectiveVariables=True,
     driverParameters=True,
     parameterTemperatures=True,
+    conservedEnergy=True,
     speed=True,
 )
 

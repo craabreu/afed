@@ -48,6 +48,7 @@ class CustomIntegrator(openmm.CustomIntegrator):
             self.addGlobalVariable(f'v_{parameter._name}', 0)
             self.addGlobalVariable(f'm_{parameter._name}', parameter._mass)
             self.addGlobalVariable(f'kT_{parameter._name}', parameter._kT)
+        self._has_conserved_energy = False
 
     def __repr__(self):
         # Human-readable version of each integrator step (adapted from choderalab/openmmtools)
@@ -333,15 +334,16 @@ class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
             See :class:`MassiveMiddleSchemeIntegrator`.
         parameterLoops : int, default=1
             See :class:`MassiveMiddleSchemeIntegrator`.
-        thermoCoordinates : bool, default=False
-            Whether to integrate thermostat coordinates. This is only necessary if one wishes to
-            compute the thermostat-related part of the non-Hamiltonian conserved energy.
+        conservedEnergy : bool, default=False
+            Whether to integrate thermostat coordinates so that one can compute the
+            thermostat-related part of the non-Hamiltonian conserved energy.
 
     """
 
     def __init__(self, temperature, timeScale, stepSize, drivingForce, **kwargs):
-        self._thermoCoordinates = kwargs.pop('thermoCoordinates', False)
+        conserved_energy = kwargs.pop('conservedEnergy', False)
         super().__init__(temperature, stepSize, drivingForce, **kwargs)
+        self._has_conserved_energy = conserved_energy
         kT = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*temperature
         Q = kT*timeScale**2
         Qparams = [param._kT*timeScale**2 for param in self._driving_force._driver_parameters]
@@ -350,7 +352,7 @@ class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
             self.addPerDofVariable(f'v{i+1}', 0)
             self.addPerParameterVariable(f'Q{i+1}', Qparams)
             self.addPerParameterVariable(f'v{i+1}', 0)
-            if self._thermoCoordinates:
+            if self._has_conserved_energy:
                 self.addPerDofVariable(f'eta{i+1}', 0)
                 self.addPerParameterVariable(f'eta{i+1}', 0)
 
@@ -363,7 +365,7 @@ class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
         addCompute('v1', f'v1*exp(-{fraction/2}*dt*v2)')
         addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
         addCompute('v', f'v*exp(-{fraction}*dt*v1)')
-        if self._thermoCoordinates:
+        if self._has_conserved_energy:
             addCompute('eta1', f'eta1 + {fraction}*dt*v1')
             addCompute('eta2', f'eta2 + {fraction}*dt*v2')
         addCompute('v1', f'v1 + {fraction/2}*dt*(m*v^2 - kT)/Q1')
@@ -381,7 +383,7 @@ class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
             Q = self.getGlobalVariableByName(f'Q{i+1}')
             velocities = self.getPerDofVariableByName(f'v{i+1}')
             energy += 0.5*Q*sum(v.x**2 + v.y**2 + v.z**2 for v in velocities)
-            if self._thermoCoordinates:
+            if self._has_conserved_energy:
                 kT = self.getGlobalVariableByName('kT')
                 coordinates = self.getPerDofVariableByName(f'eta{i+1}')
                 energy += kT*sum(eta.x + eta.y + eta.z for eta in coordinates)
@@ -389,7 +391,7 @@ class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
                 Q = self.getGlobalVariableByName(f'Q{i+1}_{parameter._name}')
                 v = self.getGlobalVariableByName(f'v{i+1}_{parameter._name}')
                 energy += 0.5*Q*v**2
-                if self._thermoCoordinates:
+                if self._has_conserved_energy:
                     kT = self.getGlobalVariableByName(f'kT_{parameter._name}')
                     eta = self.getGlobalVariableByName(f'eta{i+1}_{parameter._name}')
                     energy += kT*eta
