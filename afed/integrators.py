@@ -41,7 +41,7 @@ class CustomIntegrator(openmm.CustomIntegrator):
     def __init__(self, stepSize, drivingForce):
         super().__init__(stepSize)
         self._driving_force = drivingForce
-        self._per_parameter_variables = set(['v', 'm', 'kT'])
+        self._per_parameter_variables = ['v', 'm', 'kT']
         for parameter in drivingForce._driver_parameters:
             self.addGlobalVariable(f'v_{parameter._name}', 0)
             self.addGlobalVariable(f'm_{parameter._name}', parameter._mass)
@@ -49,6 +49,31 @@ class CustomIntegrator(openmm.CustomIntegrator):
 
     def __repr__(self):
         # Human-readable version of each integrator step (adapted from choderalab/openmmtools)
+        readable_lines = []
+
+        readable_lines.append('Per-dof variables:')
+        per_dof = []
+        for index in range(self.getNumPerDofVariables()):
+            per_dof.append(self.getPerDofVariableName(index))
+        readable_lines.append('  ' + ', '.join(per_dof))
+
+        readable_lines.append('Per-parameter variables:')
+        per_parameter = set()
+        for name in self._per_parameter_variables:
+            values = []
+            for parameter in self._driving_force._driver_parameters:
+                per_parameter.add(f'{name}_{parameter._name}')
+                values.append(self.getGlobalVariableByName(f'{name}_{parameter._name}'))
+            readable_lines.append(f'  {name} = {values}')
+
+        readable_lines.append('Global variables:')
+        for index in range(self.getNumGlobalVariables()):
+            name = self.getGlobalVariableName(index)
+            if name not in per_parameter:
+                value = self.getGlobalVariable(index)
+                readable_lines.append(f'  {name} = {value}')
+
+        readable_lines.append('Computation steps:')
         step_type_str = [
             '{target} <- {expr}',
             '{target} <- {expr}',
@@ -58,9 +83,8 @@ class CustomIntegrator(openmm.CustomIntegrator):
             'allow forces to update the context state',
             'if ({expr}):',
             'while ({expr}):',
-            'end'
+            'end',
         ]
-        readable_lines = []
         indent_level = 0
         for step in range(self.getNumComputations()):
             line = ''
@@ -82,14 +106,19 @@ class CustomIntegrator(openmm.CustomIntegrator):
         ----------
             variable : str
                 The name of the per-driver-parameter variable.
-            initialValue : unit.Quantity
-                The value initially assigned to the new variable, for all driver parameters.
+            initialValue : unit.Quantity or list(unit.Quantity)
+                The value initially assigned to the new variable, for all driver parameters. It can
+                also be a list of values whose size matches the number of driver parameters.
 
         """
 
-        for parameter in self._driving_force._driver_parameters:
-            self.addGlobalVariable(f'{name}_{parameter._name}', initialValue)
-        self._per_parameter_variables.add(name)
+        try:
+            for parameter, value in zip(self._driving_force._driver_parameters, initialValue):
+                self.addGlobalVariable(f'{name}_{parameter._name}', value)
+        except TypeError:
+            for parameter in self._driving_force._driver_parameters:
+                self.addGlobalVariable(f'{name}_{parameter._name}', initialValue)
+        self._per_parameter_variables.append(name)
 
     def addComputePerParameter(self, variable, expression):
         """
@@ -293,16 +322,18 @@ class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
             Whether to integrate thermostat coordinates. This is only necessary if one wishes to
             compute the thermostat-related part of the non-Hamiltonian conserved energy.
 
-
     """
 
     def __init__(self, temperature, timeScale, stepSize, drivingForce, **kwargs):
         self._thermoCoordinates = kwargs.pop('thermoCoordinates', False)
         super().__init__(temperature, stepSize, drivingForce, **kwargs)
         kT = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*temperature
+        Q = kT*timeScale**2
+        Qparams = [param._kT*timeScale**2 for param in self._driving_force._driver_parameters]
         for i in range(2):
-            self.addGlobalVariable(f'Q{i+1}', kT*timeScale**2)
+            self.addGlobalVariable(f'Q{i+1}', Q)
             self.addPerDofVariable(f'v{i+1}', 0)
+            self.addPerParameterVariable(f'Q{i+1}', Qparams)
             self.addPerParameterVariable(f'v{i+1}', 0)
             if self._thermoCoordinates:
                 self.addPerDofVariable(f'eta{i+1}', 0)
