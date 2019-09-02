@@ -151,7 +151,7 @@ class DriverParameter(object):
         >>> afed.DriverParameter('psi_s', unit.radians, psi_value,
         ...                      1500*unit.kelvin, 0.003*unit.radians/unit.femtosecond,
         ...                      -180*unit.degrees, 180*unit.degrees, periodic=True)
-        psi_s, initial value=3.141592653589793 rad
+        psi_s, T = 1500 K, mass = 1.3857454118700363 nm**2 Da/(rad**2), initial value=3.141592653589793 rad
 
     """
 
@@ -160,9 +160,11 @@ class DriverParameter(object):
         self._name = name
         self._initial_value = initialValue
         self._dimension = dimension
+        self._mass_units = unit.dalton*unit.nanometers**2/dimension**2
         kB = unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA
+        self._temperature = temperature
         self._kT = kB*temperature
-        self._mass = self._kT/velocityScale**2
+        self._mass = (self._kT/velocityScale**2).in_units_of(self._mass_units)
         self._lower_bound = lowerBound
         self._upper_bound = upperBound
         self._periodic = periodic
@@ -170,7 +172,7 @@ class DriverParameter(object):
             raise Exception('Bounds must be defined for a periodic driver parameter')
 
     def __repr__(self):
-        return f'{self._name}, initial value={self._initial_value}'
+        return f'{self._name}, T = {self._temperature}, mass = {self._mass}, initial value={self._initial_value}'
 
     def getMass(self):
         """
@@ -187,7 +189,7 @@ class DriverParameter(object):
             >>> model = afed.AlanineDipeptideModel()
             >>> psi_driver, _ = model.getDriverParameters()
             >>> psi_driver.getMass()
-            Quantity(value=1.6800000000000003e-21, unit=second**2*joule/(mole*radian**2))
+            Quantity(value=1.68, unit=nanometer**2*dalton/(radian**2))
 
         """
 

@@ -154,7 +154,7 @@ class StateDataReporter(app.StateDataReporter):
                     self._add_item(values, simulation.context.getParameter(parameter._name))
             if self._parameter_temperatures:
                 for KE in self._afed_integrator.getPerParameterKineticEnergy():
-                    self._add_item(values, (KE/self._kB).value_in_unit(unit.kelvin))
+                    self._add_item(values, (2*KE/self._kB).value_in_unit(unit.kelvin))
             if self._conserved_energy:
                 nhc = self._afed_integrator
                 energy = state.getPotentialEnergy() + state.getKineticEnergy()

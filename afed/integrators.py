@@ -46,7 +46,7 @@ class CustomIntegrator(openmm.CustomIntegrator):
         self._per_parameter_variables = ['v', 'm', 'kT']
         for parameter in drivingForce._driver_parameters:
             self.addGlobalVariable(f'v_{parameter._name}', 0)
-            self.addGlobalVariable(f'm_{parameter._name}', parameter._mass)
+            self.addGlobalVariable(f'm_{parameter._name}', parameter._mass/parameter._mass_units)
             self.addGlobalVariable(f'kT_{parameter._name}', parameter._kT)
         self._has_conserved_energy = False
 
@@ -184,10 +184,10 @@ class CustomIntegrator(openmm.CustomIntegrator):
 
         KE = []
         for parameter in self._driving_force._driver_parameters:
-            m = self.getGlobalVariableByName(f'm_{parameter._name}')
-            v = self.getGlobalVariableByName(f'v_{parameter._name}')
+            m = self.getGlobalVariableByName(f'm_{parameter._name}')*parameter._mass_units
+            v = self.getGlobalVariableByName(f'v_{parameter._name}')*parameter._dimension/unit.picoseconds
             KE.append(0.5*m*v*v)
-        return np.array(KE)*unit.kilojoules_per_mole
+        return np.array(KE)
 
 
 class MassiveMiddleSchemeIntegrator(CustomIntegrator):
