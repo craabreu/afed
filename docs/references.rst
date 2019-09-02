@@ -2,6 +2,6 @@
 Bibliography
 ============
 
-.. bibliography:: references.bib
+.. bibliography:: zref.bib
    :cited:
    :style: unsrt
