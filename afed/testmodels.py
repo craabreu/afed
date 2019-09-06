@@ -19,7 +19,7 @@ from simtk.openmm import app
 
 
 class TestModel:
-    def createDefaultIntegrator(self):
+    def createDefaultIntegrator(self, conservedEnergy=False):
         """
         Creates an integrator object corresponding to a massive Nosé-Hoover chain algorithm with
         :math:`T = 300~\\mathrm{K}`, :math:`\\tau = 100~\\mathrm{fs}`, and
@@ -35,10 +35,11 @@ class TestModel:
             100*unit.femtoseconds,
             1*unit.femtosecond,
             self.getDrivingForce(),
+            conservedEnergy=conservedEnergy,
         )
         return integrator
 
-    def createDefaultSimulation(self, platform='Reference', properties={}):
+    def createDefaultSimulation(self, platform='Reference', properties={}, conservedEnergy=False):
         """
         Creates a simulation object corresponding to a massive Nosé-Hoover chain algorithm with
         :math:`T = 300~\\mathrm{K}`, :math:`\\tau = 100~\\mathrm{fs}`, and
@@ -60,7 +61,7 @@ class TestModel:
         simulation = openmm.app.Simulation(
             self.getTopology(),
             self.getSystem(),
-            self.createDefaultIntegrator(),
+            self.createDefaultIntegrator(conservedEnergy=conservedEnergy),
             platform,
             properties,
         )
