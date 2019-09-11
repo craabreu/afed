@@ -380,11 +380,11 @@ class MassiveMiddleNHCIntegrator(MassiveMiddleSchemeIntegrator):
         for i in range(2):
             Q = self.getGlobalVariableByName(f'Q{i+1}')
             velocities = self.getPerDofVariableByName(f'v{i+1}')
-            energy += 0.5*Q*sum(v.x**2 + v.y**2 + v.z**2 for v in velocities)
+            energy += 0.5*Q*sum(v[0]**2 + v[1]**2 + v[2]**2 for v in velocities)
             if self._has_conserved_energy:
                 kT = self.getGlobalVariableByName('kT')
                 coordinates = self.getPerDofVariableByName(f'eta{i+1}')
-                energy += kT*sum(eta.x + eta.y + eta.z for eta in coordinates)
+                energy += kT*sum(eta[0] + eta[1] + eta[2] for eta in coordinates)
             for parameter in self._driving_force._driver_parameters:
                 Q = self.getGlobalVariableByName(f'Q{i+1}_{parameter._name}')
                 v = self.getGlobalVariableByName(f'v{i+1}_{parameter._name}')
