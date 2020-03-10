@@ -164,15 +164,13 @@ class AlanineDipeptideModel(TestModel):
         self._psi = afed.DrivenCollectiveVariable('psi', self._psi_angle, unit.radians, period)
         self._phi = afed.DrivenCollectiveVariable('phi', self._phi_angle, unit.radians, period)
         value = 180*unit.degrees
-        minval = -value
-        maxval = value
         T = 1500*unit.kelvin
         mass = 168.0*unit.dalton*(unit.angstroms/unit.radian)**2
         velocity_scale = unit.sqrt(unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*T/mass)
         self._psi_driver = afed.DriverParameter('psi_s', unit.radians, value, T, velocity_scale,
-                                                minval, maxval, periodic=True)
+                                                period=period)
         self._phi_driver = afed.DriverParameter('phi_s', unit.radians, value, T, velocity_scale,
-                                                minval, maxval, periodic=True)
+                                                period=period)
         self._driving_force = afed.HarmonicDrivingForce()
         K = 2.78E3*unit.kilocalories_per_mole/unit.radians**2
         self._driving_force.addPair(self._psi, self._psi_driver, K)

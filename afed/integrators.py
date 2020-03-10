@@ -144,22 +144,20 @@ class CustomIntegrator(openmm.CustomIntegrator):
 
         def translate(expression, parameter):
             output = re.sub(r'\bx\b', f'{parameter}', expression)
-            output = re.sub(r'\bf([0-9]*)\b', f'(-deriv(energy\\1,{parameter}))', output)
             for symbol in self._per_parameter_variables:
                 output = re.sub(r'\b{}\b'.format(symbol), f'{symbol}_{parameter}', output)
+            output = re.sub(r'\bf([0-9]*)\b', f'(-deriv(energy\\1,{parameter}))', output)
             return output
 
         for parameter in self._driving_force._driver_parameters:
             name = parameter._name
             if variable == 'x':
-                if parameter._periodic:
+                if parameter._period is not None:
                     # Apply periodic boundary conditions:
-                    ymin = parameter._lower_bound/parameter._dimension
-                    ymax = parameter._upper_bound/parameter._dimension
-                    corrected_expression = f'y - L*floor((y - ymin)/L)'
-                    corrected_expression += f'; ymin = {ymin}'
-                    corrected_expression += f'; L = {ymax - ymin}'
-                    corrected_expression += f'; y = {translate(expression, name)}'
+                    period = parameter._period/parameter._dimension
+                    corrected_expression = f'select(step(-L/2-y),y+L,select(step(y-L/2),y-L,y))'
+                    corrected_expression += f'; L={period}'
+                    corrected_expression += f'; y={translate(expression, name)}'
                     self.addComputeGlobal(name, corrected_expression)
                 else:
                     # Apply ellastic collision with hard wall:

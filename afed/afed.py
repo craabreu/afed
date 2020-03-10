@@ -35,7 +35,10 @@ class DrivenCollectiveVariable(object):
             must explicitly state it by entering ``unit.dimensionless``. Otherwise, the dimension
             is supposed to be one of the base units employed by OpenMM (see `here
             <http://docs.openmm.org/latest/userguide/theory.html#units>`_) or a combination thereof.
-        period : unit.Quantity, optional, default=None
+
+    Keyword Args
+    ------------
+        period : unit.Quantity, default=None
             The period of the collective variable if it is periodic. This argument must bear a unit
             of measurement compatible with the specified ``dimension``. If the argument is ``None``,
             then the collective variable is considered to be aperiodic.
@@ -103,6 +106,20 @@ class DrivenCollectiveVariable(object):
         energy = context.getState(getEnergy=True).getPotentialEnergy()
         return energy.value_in_unit(unit.kilojoules_per_mole)*self._dimension
 
+    def getDimension(self):
+        """
+        Returns the dimension (unit of measurement) of the collective variable.
+
+        """
+        return self._dimension
+
+    def getPeriod(self):
+        """
+        Returns the period of the collective variable if it is periodic. Otherwise, returns `None`.
+
+        """
+        return self._period
+
 
 class DriverParameter(object):
     """
@@ -126,19 +143,25 @@ class DriverParameter(object):
             a unit of measurement compatible with ``dimension``/time. The inertial mass of the
             driver parameter will be computed as :math:`k_B T/\\nu^2`, where :math:`k_B` is the
             Boltzmann contant and :math:`T` is ``temperature``.
-        lowerBound : unit.Quantity, optional, default=None
+
+    Keyword Args
+    ------------
+        lowerBound : unit.Quantity, default=None
             The lower limit imposed to the driver parameter by means of a hard wall or periodic
             boundary conditions. If this is ``None``, then the parameter will not be intentionally
-            bounded from below. Otherwise, the argument must bear a unit of measurement compatible
+            bounded from below. If specified, the argument must bear a unit of measurement compatible
             with ``dimension``.
-        upperBound : unit.Quantity, optional, default=None
+        upperBound : unit.Quantity, default=None
             The upper limit imposed to the driver parameter by means of a hard wall or periodic
             boundary conditions. If this is ``None``, then the parameter will not be intentionally
-            bounded from above. Otherwise, the argument must bear a unit of measurement compatible
+            bounded from above. If specified, the argument must bear a unit of measurement compatible
             with ``dimension``.
-        periodic : bool, optional, default=False
-            Whether the driver parameter is a periodic quantity with period equal to the difference
-            between ``upperBound`` and ``lowerBound``.
+        period : unit.Quantity, default=None
+            The period :math:`L` of the driver parameter value if it is periodic. If this is `None`,
+            then the parameter will be considered as being non-periodic. If specified, the argument
+            must bear a unit of measurement compatible with ``dimension``. In this case, it will
+            supersede the `lowerBound` and `upperBound` arguments (see above) and constrain the
+            reported parameter values between :math:`-L/2` and :math:`L/2`.
 
     Example
     -------
@@ -148,15 +171,14 @@ class DriverParameter(object):
         >>> psi_angle, _ = model.getDihedralAngles()
         >>> psi = afed.DrivenCollectiveVariable('psi', psi_angle, unit.radians, period=360*unit.degrees)
         >>> psi_value = psi.evaluate(model.getPositions())
-        >>> afed.DriverParameter('psi_s', unit.radians, psi_value,
-        ...                      1500*unit.kelvin, 0.003*unit.radians/unit.femtosecond,
-        ...                      -180*unit.degrees, 180*unit.degrees, periodic=True)
+        >>> afed.DriverParameter('psi_s', unit.radians, psi_value, 1500*unit.kelvin,
+        ...                      0.003*unit.radians/unit.femtosecond, period=360*unit.degrees)
         psi_s, T = 1500 K, mass = 1.3857454118700363 nm**2 Da/(rad**2), initial value=3.141592653589793 rad
 
     """
 
     def __init__(self, name, dimension, initialValue, temperature, velocityScale,
-                 lowerBound=None, upperBound=None, periodic=False):
+                 lowerBound=None, upperBound=None, period=None):
         self._name = name
         self._initial_value = initialValue
         self._dimension = dimension
@@ -167,9 +189,7 @@ class DriverParameter(object):
         self._mass = (self._kT/velocityScale**2).in_units_of(self._mass_units)
         self._lower_bound = lowerBound
         self._upper_bound = upperBound
-        self._periodic = periodic
-        if periodic and (self._lower_bound is None or self._upper_bound is None):
-            raise Exception('Bounds must be defined for a periodic driver parameter')
+        self._period = period
 
     def __repr__(self):
         return f'{self._name}, T = {self._temperature}, mass = {self._mass}, initial value={self._initial_value}'

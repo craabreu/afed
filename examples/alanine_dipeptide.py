@@ -10,7 +10,7 @@ parser.add_argument('--platform', dest='platform', help='the computation platfor
 parser.add_argument('--water', dest='water', help='the water model', choices=waters, default=None)
 args = parser.parse_args()
 
-timestep = 6*unit.femtoseconds
+timestep = 1*unit.femtoseconds
 temp = 300*unit.kelvin
 tau = 10*unit.femtosecond
 psi_atoms = [('N', 'ALA'), ('CA', 'ALA'), ('C', 'ALA'), ('N', 'NME')]
@@ -22,12 +22,12 @@ properties = dict(Precision='mixed') if args.platform == 'CUDA' else dict()
 model = afed.AlanineDipeptideModel(forceField='amber96', water=args.water, bareSystem=True)
 system, topology, positions = model.getSystem(), model.getTopology(), model.getPositions()
 
-# Split forces into multiple time scales:
-respa_loops = [12, 1]  # time steps = 0.25 fs, 3 fs
-for force in system.getForces():
-    if isinstance(force, openmm.NonbondedForce):
-        force.setForceGroup(1)
-        force.setReciprocalSpaceForceGroup(1)
+# # Split forces into multiple time scales:
+# respa_loops = [12, 1]  # time steps = 0.25 fs, 3 fs
+# for force in system.getForces():
+#     if isinstance(force, openmm.NonbondedForce):
+#         force.setForceGroup(1)
+#         force.setReciprocalSpaceForceGroup(1)
 
 # Add driven collective variables (dihedral angles):
 atoms = [(a.name, a.residue.name) for a in topology.atoms()]
@@ -46,9 +46,9 @@ K_dihedrals = 2780*unit.kilocalories_per_mole/unit.radians**2
 velocity_scale = unit.sqrt(unit.BOLTZMANN_CONSTANT_kB*unit.AVOGADRO_CONSTANT_NA*T_dihedrals/mass_dihedrals)
 
 psi_driver = afed.DriverParameter('psi_s', unit.radians, psi.evaluate(positions), T_dihedrals,
-                                  velocity_scale, -180*unit.degrees, 180*unit.degrees, periodic=True)
+                                  velocity_scale, period=360*unit.degrees)
 phi_driver = afed.DriverParameter('phi_s', unit.radians, phi.evaluate(positions), T_dihedrals,
-                                  velocity_scale, -180*unit.degrees, 180*unit.degrees, periodic=True)
+                                  velocity_scale, period=360*unit.degrees)
 
 # Add driving force:
 dihedrals = afed.HarmonicDrivingForce()
@@ -63,9 +63,9 @@ integrator = afed.MassiveMiddleNHCIntegrator(
     tau,
     timestep,
     dihedrals,
-    respaLoops=respa_loops,
-    parameterLoops=6,
-    conservedEnergy=True,
+    # respaLoops=respa_loops,
+    # parameterLoops=6,
+    # conservedEnergy=True,
 )
 print(integrator)
 
@@ -83,7 +83,7 @@ data_reporter = afed.StateDataReporter(
     collectiveVariables=True,
     driverParameters=True,
     parameterTemperatures=True,
-    conservedEnergy=True,
+    # conservedEnergy=True,
     speed=True,
 )
 
